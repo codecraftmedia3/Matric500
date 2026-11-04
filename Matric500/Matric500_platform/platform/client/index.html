@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MATRIC500 · Curriculum Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { bg:'#08050F', surface:'#120A24', surface2:'#1A1032', line:'#3A2560', ink:'#F1E9FF', muted:'#9E8FC4', cyan:'#00F0FF', magenta:'#FF2EC4', purple:'#B026FF', volt:'#F4FF52' },
+    fontFamily: { display:['Orbitron','sans-serif'], sans:['Rajdhani','system-ui','sans-serif'], mono:['"Share Tech Mono"','monospace'] }
+  } } };
+</script>
+<style>
+  /* Tree connectors: every .tree-item draws its own spine segment + elbow, coloured by its grade tier (--c) */
+  .branch { margin-left: 12px; padding-left: 22px; }
+  .tree-item { position: relative; padding-top: 10px; }
+  .tree-item::before { content:''; position:absolute; left:-22px; top:34px; width:22px; height:2px; background:var(--c); }
+  .tree-item::after  { content:''; position:absolute; left:-22px; top:0; bottom:0; width:2px; background:var(--c); }
+  .tree-item:last-child::after { bottom:auto; height:35px; }
+  .is-done { background: color-mix(in srgb, var(--c) 24%, #120A24); }
+  .is-done .ttl { text-decoration: line-through; opacity:.75; }
+  .is-done .chk { background: var(--c); color:#08050F; }
+  .is-done .chk::after { content:'✓'; }
+  .is-hard { border-style: dashed !important; box-shadow: 0 0 0 3px rgba(255,46,196,.45); }
+  .is-hard .chk { background:#FF2EC4; border-color:#FF2EC4; color:#F4FF52; }
+  .is-hard .chk::after { content:'⚑'; }
+  .chev { transition: transform .2s; } [aria-expanded="true"] .chev { transform: rotate(90deg); }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
+</style>
+</head>
+<body class="min-h-screen bg-bg font-sans text-ink antialiased"
+      style="background-image:linear-gradient(rgba(0,240,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(0,240,255,.035) 1px,transparent 1px),radial-gradient(ellipse at 50% -10%,rgba(176,38,255,.16),transparent 55%);background-size:30px 30px,30px 30px,auto">
+
+<header class="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-bg/90 px-4 py-3 backdrop-blur sm:px-8">
+  <button id="brand" class="flex items-center gap-2 font-display text-lg font-extrabold tracking-wide text-ink">
+    <span class="grid h-8 w-9 place-items-center rounded-md bg-ink text-xs font-bold text-bg">M5</span>MATRIC500
+  </button>
+  <nav class="flex items-center gap-2" aria-label="Main">
+    <button id="helpBtn" class="hidden rounded-full border border-cyan px-3 py-1.5 text-xs font-bold text-cyan hover:bg-cyan hover:text-bg">? How to use</button>
+    <button id="dashBtn" class="rounded-full border border-muted px-3 py-1.5 text-xs font-bold text-muted hover:bg-muted hover:text-bg">Dashboard</button>
+  </nav>
+</header>
+
+<main>
+  <section id="view-home" class="mx-auto max-w-5xl px-4 pb-24 pt-12 sm:px-6">
+    <h1 class="text-center font-display text-3xl font-extrabold uppercase leading-tight sm:text-5xl">Chart your way through <span class="text-purple">what you need to know</span></h1>
+    <p class="mx-auto mt-4 max-w-xl text-center text-muted/80">Pick a subject and follow the tree from Grade 9 to Grade 12, one node at a time.</p>
+    <div id="tierKey" class="mt-6 flex flex-wrap justify-center gap-2"></div>
+    <div id="subjectGrid" class="mt-10 grid gap-4 sm:grid-cols-2"></div>
+  </section>
+
+  <section id="view-subject" class="mx-auto hidden max-w-3xl px-4 pb-32 pt-6 sm:px-6">
+    <button data-home class="text-sm font-bold text-muted hover:text-ink">← All subjects</button>
+    <div id="subjectTree" class="mt-4"></div>
+  </section>
+
+  <section id="view-dash" class="mx-auto hidden max-w-4xl px-4 pb-24 pt-6 sm:px-6">
+    <button data-home class="text-sm font-bold text-muted hover:text-ink">← All subjects</button>
+    <h1 class="mb-6 mt-4 font-display text-2xl font-extrabold uppercase">Your dashboard</h1>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="rounded-2xl border border-line bg-surface p-5">
+        <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">Profile</h2>
+        <label for="nameInput" class="text-xs text-muted/80">Display name</label>
+        <input id="nameInput" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink focus:border-muted focus:outline-none" placeholder="e.g. Selam">
+        <p id="saveNote" class="mt-1 h-4 text-xs text-muted"></p>
+        <h2 class="mb-2 mt-4 text-xs font-bold uppercase tracking-widest text-cyan">Overall progress</h2>
+        <div id="overall"></div>
+      </div>
+      <div class="rounded-2xl border border-line bg-surface p-5">
+        <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">By subject &amp; grade</h2>
+        <div id="gradeStats" class="space-y-3"></div>
+      </div>
+      <div class="rounded-2xl border border-line bg-surface p-5 md:col-span-2">
+        <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">Marked challenging</h2>
+        <ul id="hardList" class="divide-y divide-line"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Detail modal -->
+<div id="nodeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-bg/80 p-4" role="dialog" aria-modal="true" aria-labelledby="nmTitle">
+  <div class="w-full max-w-md rounded-2xl border-2 bg-surface p-6 shadow-2xl" id="nmBox">
+    <span id="nmKind" class="inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"></span>
+    <h3 id="nmTitle" class="mt-2 font-display text-xl font-bold text-ink"></h3>
+    <p id="nmText" class="mt-2 text-sm leading-relaxed text-muted/90"></p>
+    <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" id="nmActions">
+      <button data-set="done" class="rounded-lg border border-muted py-2 text-xs font-bold text-muted hover:bg-muted hover:text-bg">✓ Done</button>
+      <button data-set="" class="rounded-lg border border-cyan py-2 text-xs font-bold text-cyan hover:bg-cyan hover:text-bg">Not started</button>
+      <button data-set="challenging" class="rounded-lg border border-magenta py-2 text-xs font-bold text-magenta hover:bg-magenta hover:text-ink">⚑ Challenging</button>
+      <button data-close class="rounded-lg border border-line py-2 text-xs font-bold text-muted/80 hover:bg-line">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- First-visit login modal (mockup) -->
+<div id="loginModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-bg/90 p-4" role="dialog" aria-modal="true" aria-labelledby="lgTitle">
+  <div class="w-full max-w-sm rounded-2xl border-2 border-purple bg-surface p-7 text-center shadow-2xl">
+    <span class="mx-auto grid h-12 w-14 place-items-center rounded-lg bg-ink font-display font-extrabold text-bg">M5</span>
+    <h2 id="lgTitle" class="mt-4 font-display text-2xl font-extrabold">Welcome to Matric500</h2>
+    <p class="mt-2 text-sm text-muted/85">Sign in to keep your progress across devices. You can also continue as a guest.</p>
+    <div id="gsiBtn" class="mt-6 flex justify-center"></div>
+    <button id="googleBtn" class="mt-6 flex w-full items-center justify-center gap-3 rounded-lg bg-ink px-4 py-3 text-sm font-bold text-bg shadow hover:bg-muted">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.2 5.5-4.7 7.2l7.6 5.9c4.4-4.1 6.9-10.2 6.9-17.6z"/><path fill="#FBBC05" d="M10.5 28.7a14.5 14.5 0 0 1 0-9.4l-7.9-6.1a24 24 0 0 0 0 21.6l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+      Sign in with Google
+    </button>
+    <button id="adminToggle" class="mt-3 block w-full text-xs font-bold text-cyan/90 underline hover:text-ink">Admin sign in</button>
+    <form id="adminForm" class="mt-3 hidden space-y-2 text-left">
+      <input id="adminEmail" type="email" autocomplete="username" placeholder="Admin email" required class="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink">
+      <input id="adminPass" type="password" autocomplete="current-password" placeholder="Password" required class="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink">
+      <p id="adminErr" class="min-h-[1rem] text-xs text-magenta"></p>
+      <button class="w-full rounded-lg bg-cyan px-4 py-2 text-sm font-bold text-bg hover:opacity-90">Sign in as admin</button>
+    </form>
+    <button id="guestBtn" class="mt-3 text-xs font-bold text-muted/80 underline hover:text-ink">Maybe later, continue as guest</button>
+  </div>
+</div>
+
+<!-- Onboarding popout (roadmap page only) -->
+<div id="tourModal" class="fixed inset-0 z-[55] hidden items-end justify-center bg-bg/80 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+  <div class="w-full max-w-md rounded-2xl border-2 border-cyan bg-surface p-6 shadow-2xl">
+    <div class="flex items-center justify-between"><span id="tourStep" class="text-[10px] font-bold uppercase tracking-widest text-cyan"></span><button id="tourSkip" class="text-xs text-muted/70 hover:text-ink">Skip</button></div>
+    <div id="tourIcon" class="mt-3 text-4xl" aria-hidden="true"></div>
+    <h3 id="tourTitle" class="mt-1 font-display text-xl font-bold"></h3>
+    <p id="tourText" class="mt-2 min-h-[4.5rem] text-sm leading-relaxed text-muted/90"></p>
+    <div class="mt-4 flex items-center justify-between">
+      <div id="tourDots" class="flex gap-1.5"></div>
+      <div class="flex gap-2"><button id="tourBack" class="rounded-lg border border-line px-3 py-2 text-xs font-bold text-muted">Back</button><button id="tourNext" class="rounded-lg bg-cyan px-4 py-2 text-xs font-bold text-bg hover:bg-muted">Next</button></div>
+    </div>
+  </div>
+</div>
+
+<button id="toTop" aria-label="Back to top" class="pointer-events-none fixed bottom-5 right-5 z-40 grid h-12 w-12 translate-y-4 place-items-center rounded-full border-2 border-ink bg-magenta text-xl font-bold text-ink opacity-0 shadow-lg shadow-black/50 transition duration-300 hover:bg-magenta">↑</button>
+
+<script>
+  /* Roadmap: try the API first (gives sign-in state); if the API is unreachable fall back to the bundled data so the roadmap always opens. */
+  function startApp(d) { window.ROADMAP_DATA = d; const s = document.createElement('script'); s.src = 'js/app.js'; document.body.appendChild(s); }
+  fetch('/api/roadmap', { credentials: 'same-origin' })
+    .then((r) => { if (r.status === 403) throw new Error('banned'); if (!r.ok) throw new Error('load'); return r.json(); })
+    .catch((e) => {
+      if (e.message === 'banned') throw e;
+      return fetch('data/roadmap-data.json').then((r) => { if (!r.ok) throw new Error('load'); return r.json(); })
+        .then((d) => ({ user: null, googleClientId: null, adminLogin: false, subjects: d.subjects }));
+    })
+    .then(startApp)
+    .catch((e) => { document.querySelector('main').innerHTML = '<p class="p-10 text-center text-magenta">' + (e.message === 'banned' ? 'This account has been suspended.' : 'Could not load the roadmap. Please refresh.') + '</p>'; });
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
