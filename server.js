@@ -18,6 +18,8 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(helmet({
+  // Google sign-in opens a popup that must talk back to this page; helmet's default (same-origin) blocks that and leaves it stuck on accounts.google.com/gsi/transform
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   contentSecurityPolicy: { directives: {
     defaultSrc: ["'self'"],
     // 'unsafe-inline' + cdn.tailwindcss.com are only needed for the in-browser Tailwind build. Compile Tailwind for production and drop both.
