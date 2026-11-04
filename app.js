@@ -305,18 +305,28 @@ renderHome();
 syncToTop();
 if (!loginHandled) toggleModal('loginModal', true);
 
-/* Google Identity Services: swaps the mock button for the real one when a client id is configured */
-function initAuth() {
-  if (!GOOGLE_CLIENT_ID || !window.google || !google.accounts) return;
-  $('googleBtn').classList.add('hidden');
+/* Google Identity Services. app.js loads after the roadmap fetch, which can be after window "load",
+   so do not wait for that event: poll until the Google script is ready (about 10s), then draw the real button. */
+function showGsiMsg(t) { const m = $('gsiMsg'); if (m) m.textContent = t; }
+function initAuth(tries = 0) {
+  $('googleBtn').classList.add('hidden');            // the placeholder button never signs anyone in
+  if (!GOOGLE_CLIENT_ID) return showGsiMsg('Sign-in is not set up yet. You can continue as a guest and your progress is saved on this device.');
+  if (!window.google || !google.accounts) {
+    if (tries < 50) { showGsiMsg('Loading Google sign-in…'); return setTimeout(() => initAuth(tries + 1), 200); }
+    return showGsiMsg('Google sign-in could not load. Turn off any ad blocker for this site or try another browser, then refresh.');
+  }
+  showGsiMsg('');
   google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: async ({ credential }) => {
-    const r = await fetch('/api/auth/google', { method: 'POST', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ credential }) });
-    if (r.ok) { store.set('m500_login_done', true); location.reload(); }
-    else alert(r.status === 403 ? 'This account has been suspended.' : 'Sign-in failed. Please try again.');
+    showGsiMsg('Signing you in…');
+    try {
+      const r = await fetch('/api/auth/google', { method: 'POST', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ credential }) });
+      if (r.ok) { store.set('m500_login_done', true); return location.reload(); }
+      showGsiMsg(r.status === 403 ? 'This account has been suspended.' : r.status === 401 ? 'Google rejected the sign-in. Check that GOOGLE_CLIENT_ID on the server matches your Google client.' : 'Sign-in failed (server error). Please try again.');
+    } catch { showGsiMsg('Cannot reach the server. Please try again.'); }
   } });
   google.accounts.id.renderButton($('gsiBtn'), { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with' });
 }
-window.addEventListener('load', initAuth);
+initAuth();
 
 /* Admin sign-in (email + password from server .env) */
 if (!ADMIN_LOGIN) $('adminToggle').classList.add('hidden');
