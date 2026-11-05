@@ -50,7 +50,7 @@ app.get('/admin', auth.loadUser, (req, res) =>
   req.user && req.user.role === 'admin' ? res.sendFile(path.join(__dirname, 'admin.html')) : res.redirect('/'));
 
 // Only these public files are served (everything else in this folder, e.g. server code and .env, stays private)
-const PUBLIC = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/roadmap-data.json': 'roadmap-data.json' };
+const PUBLIC = { '/': 'index.html', '/index.html': 'index.html', '/app.js': 'app.js', '/login': 'login.html', '/login.html': 'login.html', '/login.js': 'login.js', '/roadmap-data.json': 'roadmap-data.json' };
 app.get(Object.keys(PUBLIC), (req, res) => res.sendFile(path.join(__dirname, PUBLIC[req.path]), { maxAge: '5m' }));
 
 // eslint-disable-next-line no-unused-vars

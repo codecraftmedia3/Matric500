@@ -3,7 +3,6 @@
 const SUBJECTS = window.ROADMAP_DATA.subjects;
 const ME = window.ROADMAP_DATA.user;           // null when signed out
 const GOOGLE_CLIENT_ID = window.ROADMAP_DATA.googleClientId;
-const ADMIN_LOGIN = !!window.ROADMAP_DATA.adminLogin;
 const IS_ADMIN = !!(ME && ME.role === 'admin');
 
 /* Grade tiers: warm yellow (G9) -> deep ruby (G12). c = lines/borders, t = accent text, f/k = badge fill/ink */
@@ -21,7 +20,7 @@ const store = {
 };
 let progress = ME ? ME.progress : store.get('m500_progress', {});
 let profile  = store.get('m500_profile', {});
-let loginHandled = !!ME || store.get('m500_login_done', false);
+let loginHandled = true;   // sign-in lives on login.html now; the tour starts on the first subject you open
 let toured = store.get('m500_tour_done', false);
 
 /* ---------- helpers ---------- */
@@ -89,7 +88,7 @@ function renderHeroPanel() {
   const target = started || keys[0];
   const verb = started ? 'Continue' : 'Start';
   const C = 2 * Math.PI * 26, dash = (p / 100) * C;
-  const guest = !ME ? `<div class="rounded-2xl bg-[#17382F] p-4 text-sm text-[#D4E3DC]">Guest mode: progress is saved on this device. <button data-signin class="font-bold text-volt underline">Sign in</button> to keep it across devices.</div>` : '';
+  const guest = !ME ? `<div class="rounded-2xl bg-[#17382F] p-4 text-sm text-[#D4E3DC]">Guest mode: progress is saved on this device. <a href="login.html" class="font-bold text-volt underline">Sign in</a> to keep it across devices.</div>` : '';
   $('heroPanel').innerHTML = `
     <div class="flex items-start justify-between gap-3">
       <div><p class="text-xs font-bold uppercase tracking-widest text-[#A9C2B8]">My progress</p>
@@ -237,21 +236,13 @@ function renderStep() {
   $('tourNext').textContent = step === STEPS.length - 1 ? 'Got it' : 'Next';
 }
 
-/* ---------- login (first visit only) ---------- */
-function finishLogin(name) {
-  if (name) { profile.name = name; store.set('m500_profile', profile); }
-  loginHandled = true; store.set('m500_login_done', true);
-  toggleModal('loginModal', false);
-  if (!$('view-subject').classList.contains('hidden') && !toured) startTour();
-}
-
 /* ---------- events (delegated) ---------- */
 document.addEventListener('click', (e) => {
   const q = (s) => e.target.closest(s);
   if (q('[data-subject]')) return openSubject(q('[data-subject]').dataset.subject);
   if (q('[data-home]') || q('#brand')) return goHome();
   if (q('#dashBtn') || q('[data-godash]')) return goDash();
-  if (q('#signinBtn') || q('[data-signin]')) return toggleModal('loginModal', true);
+  if (q('#signoutBtn')) return signOut();
   if (q('#helpBtn')) return startTour();
   if (q('[data-check]')) { const id = q('[data-check]').dataset.check; return setStatus(id, status(id) === 'done' ? '' : 'done'); }
   if (q('[data-open]')) return openNode(q('[data-open]').dataset.open);
@@ -269,15 +260,12 @@ document.addEventListener('click', (e) => {
   }
   if (q('#nmActions [data-set]')) { setStatus(activeId, q('[data-set]').dataset.set); return toggleModal('nodeModal', false); }
   if (q('[data-close]') || e.target.id === 'nodeModal') return toggleModal('nodeModal', false);
-  if (q('#googleBtn')) return finishLogin('Student');
-  if (q('#adminToggle')) return $('adminForm').classList.toggle('hidden');
-  if (q('#guestBtn')) return finishLogin();
   if (q('#tourNext')) return step === STEPS.length - 1 ? endTour() : (step++, renderStep());
   if (q('#tourBack')) return (step--, renderStep());
   if (q('#tourSkip')) return endTour();
   if (q('#toTop')) return window.scrollTo({ top: 0, behavior: 'smooth' });
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleModal('nodeModal', false); toggleModal('loginModal', false); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleModal('nodeModal', false); } });
 document.addEventListener('contextmenu', (e) => {
   const b = e.target.closest('[data-open]'); if (!b) return;
   e.preventDefault(); const id = b.dataset.open; setStatus(id, status(id) === 'done' ? '' : 'done');
@@ -299,42 +287,13 @@ function syncToTop() {
 window.addEventListener('scroll', syncToTop, { passive: true });
 
 /* ---------- init ---------- */
-if (ME) $('signinBtn').classList.add('hidden');
+if (ME) { $('signinBtn').classList.add('hidden'); $('signoutBtn').classList.remove('hidden'); }
 if (IS_ADMIN) $('adminLink').classList.remove('hidden');
 renderHome();
 syncToTop();
-if (!loginHandled) toggleModal('loginModal', true);
 
-/* Google Identity Services. app.js loads after the roadmap fetch, which can be after window "load",
-   so do not wait for that event: poll until the Google script is ready (about 10s), then draw the real button. */
-function showGsiMsg(t) { const m = $('gsiMsg'); if (m) m.textContent = t; }
-function initAuth(tries = 0) {
-  $('googleBtn').classList.add('hidden');            // the placeholder button never signs anyone in
-  if (!GOOGLE_CLIENT_ID) return showGsiMsg('Sign-in is not set up yet. You can continue as a guest and your progress is saved on this device.');
-  if (!window.google || !google.accounts) {
-    if (tries < 50) { showGsiMsg('Loading Google sign-in…'); return setTimeout(() => initAuth(tries + 1), 200); }
-    return showGsiMsg('Google sign-in could not load. Turn off any ad blocker for this site or try another browser, then refresh.');
-  }
-  showGsiMsg('');
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: async ({ credential }) => {
-    showGsiMsg('Signing you in…');
-    try {
-      const r = await fetch('/api/auth/google', { method: 'POST', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ credential }) });
-      if (r.ok) { store.set('m500_login_done', true); return location.reload(); }
-      showGsiMsg(r.status === 403 ? 'This account has been suspended.' : r.status === 401 ? 'Google rejected the sign-in. Check that GOOGLE_CLIENT_ID on the server matches your Google client.' : 'Sign-in failed (server error). Please try again.');
-    } catch { showGsiMsg('Cannot reach the server. Please try again.'); }
-  } });
-  google.accounts.id.renderButton($('gsiBtn'), { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with' });
+/* ---------- sign out (sign in happens on login.html) ---------- */
+async function signOut() {
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: API_HEADERS }); } catch { /* ignore */ }
+  location.reload();
 }
-initAuth();
-
-/* Admin sign-in (email + password from server .env) */
-if (!ADMIN_LOGIN) $('adminToggle').classList.add('hidden');
-$('adminForm').addEventListener('submit', async (e) => {
-  e.preventDefault(); $('adminErr').textContent = '';
-  try {
-    const r = await fetch('/api/auth/admin-login', { method: 'POST', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ email: $('adminEmail').value, password: $('adminPass').value }) });
-    if (r.ok) { store.set('m500_login_done', true); location.href = '/admin'; return; }
-    $('adminErr').textContent = r.status === 401 ? 'Wrong email or password.' : r.status === 503 ? 'Admin login is not configured on the server.' : 'Sign-in failed. Is the database running?';
-  } catch { $('adminErr').textContent = 'Cannot reach the server.'; }
-});
