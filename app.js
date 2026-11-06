@@ -59,6 +59,8 @@ const openChapters = new Set();
 function show(view) {
   for (const v of ['home', 'subject', 'dash']) $('view-' + v).classList.toggle('hidden', v !== view);
   $('helpBtn').classList.toggle('hidden', view !== 'subject');
+  $('signinBtn').classList.toggle('mobile-nav-hidden', view === 'subject');
+  $('signoutBtn').classList.toggle('mobile-nav-hidden', view === 'subject');
   window.scrollTo({ top: 0 });
 }
 function goHome() { renderHome(); show('home'); }
