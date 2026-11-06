@@ -83,9 +83,37 @@
     <div class="grid gap-4 md:grid-cols-2">
       <div class="rounded-2xl border border-line bg-surface p-5">
         <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">Profile</h2>
-        <label for="nameInput" class="text-xs text-muted">Display name</label>
-        <input id="nameInput" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink focus:border-muted focus:outline-none" placeholder="e.g. Selam">
-        <p id="saveNote" class="mt-1 h-4 text-xs text-muted"></p>
+        <div id="profileEdit" class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label for="nameInput" class="text-xs text-muted">Display name</label>
+            <input id="nameInput" maxlength="80" autocomplete="name" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink" placeholder="e.g. Selam">
+          </div>
+          <div>
+            <label for="gradeInput" class="text-xs text-muted">Grade</label>
+            <select id="gradeInput" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink">
+              <option value="">Select grade</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select>
+          </div>
+          <div>
+            <label for="schoolInput" class="text-xs text-muted">School</label>
+            <input id="schoolInput" maxlength="120" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink" placeholder="School name">
+          </div>
+          <fieldset class="text-xs text-muted">
+            <legend>Field of study</legend>
+            <div class="mt-2 flex flex-wrap gap-4 text-sm text-ink">
+              <label for="streamNatural" class="flex items-center gap-2"><input id="streamNatural" type="radio" name="streamInput" value="natural" class="accent-cyan">Natural Science</label>
+              <label for="streamSocial" class="flex items-center gap-2"><input id="streamSocial" type="radio" name="streamInput" value="social" class="accent-cyan">Social Science</label>
+            </div>
+          </fieldset>
+        </div>
+        <div id="profileRead" class="hidden space-y-1 text-sm text-ink" aria-live="polite"></div>
+        <div class="mt-3 flex items-center gap-3">
+          <button id="profileSaveBtn" type="button" class="rounded-full bg-ink px-5 py-2 text-sm font-bold text-white hover:bg-cyan">Save</button>
+          <button id="profileEditBtn" type="button" class="hidden rounded-full border-2 border-ink px-5 py-2 text-sm font-bold text-ink hover:bg-ink hover:text-white">Edit</button>
+          <button id="profileCancelBtn" type="button" class="hidden text-sm text-muted underline hover:text-ink">Cancel</button>
+        </div>
+        <p id="profileHint" class="mt-2 text-xs text-muted"></p>
+        <p id="saveNote" class="mt-1 min-h-4 text-xs text-muted" role="status" aria-live="polite"></p>
         <h2 class="mb-2 mt-4 text-xs font-bold uppercase tracking-widest text-cyan">Overall progress</h2>
         <div id="overall"></div>
       </div>

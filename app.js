@@ -19,7 +19,13 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
 };
 let progress = ME ? ME.progress : store.get('m500_progress', {});
-let profile  = store.get('m500_profile', {});
+const localProfile = store.get('m500_profile', {});
+const serverProfile = ME && ME.profile;
+const serverProfileSaved = !!(serverProfile && (serverProfile.grade != null || serverProfile.school || serverProfile.stream));
+let profile = ME
+  ? (serverProfileSaved ? { ...serverProfile } : { ...localProfile, name: localProfile.name || ME.name })
+  : localProfile;
+let profileSaved = ME ? serverProfileSaved : !!(profile.name || profile.grade != null || profile.school || profile.stream);
 let loginHandled = true;   // sign-in lives on login.html now; the tour starts on the first subject you open
 let toured = store.get('m500_tour_done', false);
 
@@ -204,6 +210,12 @@ function toggleModal(id, on) {
 /* ---------- dashboard ---------- */
 function renderDash() {
   $('nameInput').value = profile.name || (ME && ME.name) || '';
+  $('gradeInput').value = profile.grade == null ? '' : String(profile.grade);
+  $('schoolInput').value = profile.school || '';
+  $('streamNatural').checked = profile.stream === 'natural';
+  $('streamSocial').checked = profile.stream === 'social';
+  $('profileHint').textContent = ME ? '' : 'Sign in to keep your profile on every device.';
+  renderProfileMode(!profileSaved, !profileSaved);
   const all = count(Object.keys(INDEX));
   $('overall').innerHTML = `<div class="mb-1 flex justify-between text-xs text-muted"><span>${all.done}/${all.total} nodes</span><span>${pct(all)}%</span></div>${bar(pct(all), '#1F6B4F', 'h-3')}`;
   $('gradeStats').innerHTML = Object.entries(SUBJECTS).flatMap(([key, s]) => s.grades.map((g) => {
@@ -214,6 +226,61 @@ function renderDash() {
   $('hardList').innerHTML = hard.length
     ? hard.map((i) => `<li class="flex items-center justify-between gap-3 py-2 text-sm"><button data-goto="${i}" class="text-left hover:underline">${esc(INDEX[i].title)}</button><span class="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold" style="background:${TIERS[INDEX[i].grade].f};color:${TIERS[INDEX[i].grade].k}">${esc(INDEX[i].subject)} · G${INDEX[i].grade}</span></li>`).join('')
     : '<li class="py-2 text-sm text-muted">Nothing marked challenging yet.</li>';
+}
+
+function renderProfileMode(editing, focus = false) {
+  $('profileEdit').classList.toggle('hidden', !editing);
+  $('profileRead').classList.toggle('hidden', editing);
+  $('profileSaveBtn').classList.toggle('hidden', !editing);
+  $('profileEditBtn').classList.toggle('hidden', editing);
+  $('profileCancelBtn').classList.toggle('hidden', editing || !profileSaved);
+  if (!editing) {
+    const streamName = profile.stream === 'natural' ? 'Natural Science' : profile.stream === 'social' ? 'Social Science' : '-';
+    $('profileRead').innerHTML = `<p>Name: ${esc(profile.name || '')}</p><p>Grade: ${esc(profile.grade ?? '-')}</p><p>School: ${esc(profile.school || '-')}</p><p>Field: ${streamName}</p>`;
+  }
+  if (focus && editing) $('nameInput').focus();
+  if (focus && !editing) $('profileEditBtn').focus();
+}
+
+function editProfile() {
+  $('nameInput').value = profile.name || (ME && ME.name) || '';
+  $('gradeInput').value = profile.grade == null ? '' : String(profile.grade);
+  $('schoolInput').value = profile.school || '';
+  $('streamNatural').checked = profile.stream === 'natural';
+  $('streamSocial').checked = profile.stream === 'social';
+  $('saveNote').textContent = '';
+  renderProfileMode(true, true);
+}
+
+async function saveProfile() {
+  const name = $('nameInput').value.trim();
+  const gradeValue = $('gradeInput').value;
+  const school = $('schoolInput').value.trim();
+  const stream = document.querySelector('input[name="streamInput"]:checked')?.value || null;
+  const grade = gradeValue ? Number(gradeValue) : null;
+  const saveButton = $('profileSaveBtn');
+  if (name.length < 1 || name.length > 80 || (grade !== null && ![9, 10, 11, 12].includes(grade)) || school.length > 120 || (stream !== null && !['natural', 'social'].includes(stream))) {
+    $('saveNote').textContent = 'Check your name, grade, school, and field.';
+    return;
+  }
+  const updatedProfile = { name, grade, school, stream };
+  saveButton.disabled = true;
+  $('saveNote').textContent = '';
+  try {
+    if (ME) {
+      const response = await fetch('/api/profile', { method: 'PUT', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify(updatedProfile) });
+      if (!response.ok) throw new Error('save_failed');
+    }
+    profile = updatedProfile;
+    profileSaved = true;
+    store.set('m500_profile', profile);
+    $('saveNote').textContent = 'Saved';
+    renderProfileMode(false, true);
+  } catch {
+    $('saveNote').textContent = 'Could not save. Try again.';
+  } finally {
+    saveButton.disabled = false;
+  }
 }
 
 /* ---------- onboarding tour (roadmap page only) ---------- */
@@ -270,10 +337,11 @@ document.addEventListener('contextmenu', (e) => {
   const b = e.target.closest('[data-open]'); if (!b) return;
   e.preventDefault(); const id = b.dataset.open; setStatus(id, status(id) === 'done' ? '' : 'done');
 });
-let saveTimer;
-$('nameInput').addEventListener('input', (e) => {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { profile.name = e.target.value; store.set('m500_profile', profile); $('saveNote').textContent = 'Saved'; setTimeout(() => ($('saveNote').textContent = ''), 1000); }, 350);
+$('profileSaveBtn').addEventListener('click', saveProfile);
+$('profileEditBtn').addEventListener('click', editProfile);
+$('profileCancelBtn').addEventListener('click', () => {
+  $('saveNote').textContent = '';
+  renderProfileMode(false);
 });
 
 /* Back-to-top: appears after 300px of scroll */

@@ -35,3 +35,8 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   detail     text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+-- Student profile (safe to run many times; existing rows are untouched)
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS grade  smallint CHECK (grade BETWEEN 9 AND 12),
+  ADD COLUMN IF NOT EXISTS school text     CHECK (char_length(school) <= 120),
+  ADD COLUMN IF NOT EXISTS stream text     CHECK (stream IN ('natural','social'));
