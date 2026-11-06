@@ -30,6 +30,7 @@
   .is-hard .chk { background:#C23B22; border-color:#C23B22; color:#fff; }
   .is-hard .chk::after { content:'⚑'; }
   .chev { transition: transform .2s; } [aria-expanded="true"] .chev { transform: rotate(90deg); }
+  @media (max-width: 639px) { .mobile-nav-hidden { display:none !important; } }
   @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
 </style>
 </head>
@@ -40,12 +41,17 @@
     <button id="brand" class="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-ink">
       <span class="grid h-9 w-9 place-items-center rounded-xl bg-ink" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8F25A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v13a3 3 0 0 0 3 3h9"/><path d="M12 4v8"/></svg></span>Matric500
     </button>
-    <nav class="flex flex-wrap items-center justify-end gap-2" aria-label="Main">
-      <button id="helpBtn" class="hidden min-h-[40px] rounded-full border-2 border-ink px-4 py-1.5 text-sm font-bold text-ink hover:bg-ink hover:text-white">How to use</button>
-      <button id="dashBtn" class="min-h-[40px] rounded-full border-2 border-ink px-4 py-1.5 text-sm font-bold text-ink hover:bg-ink hover:text-white">My progress</button>
-      <a id="adminLink" href="/admin" class="hidden min-h-[40px] rounded-full border-2 border-ink bg-volt px-4 py-2 text-sm font-bold text-ink">Admin</a>
-      <a id="signinBtn" href="login.html" class="inline-flex min-h-[40px] items-center rounded-full bg-ink px-5 py-1.5 text-sm font-bold text-white hover:bg-cyan">Sign in</a>
-      <button id="signoutBtn" class="hidden min-h-[40px] rounded-full border-2 border-ink px-4 py-1.5 text-sm font-bold text-ink hover:bg-ink hover:text-white">Sign out</button>
+    <nav class="flex items-center justify-end gap-2 sm:gap-3" aria-label="Main">
+      <div class="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+        <button id="dashBtn" type="button" aria-label="My progress" title="My progress" class="grid h-10 w-10 place-items-center rounded-full border-2 border-ink text-ink hover:bg-ink hover:text-white sm:inline-flex sm:h-auto sm:w-auto sm:min-h-[40px] sm:items-center sm:px-4 sm:py-1.5 sm:text-sm sm:font-bold">
+          <svg class="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4"/></svg>
+          <span class="hidden sm:inline">My progress</span>
+        </button>
+        <button id="helpBtn" type="button" class="hidden text-xs font-semibold text-ink underline underline-offset-2 hover:text-cyan sm:min-h-[40px] sm:rounded-full sm:border-2 sm:border-ink sm:px-4 sm:py-1.5 sm:text-sm sm:font-bold sm:no-underline sm:hover:bg-ink sm:hover:text-white">How to use</button>
+        <a id="signinBtn" href="login.html" class="text-xs font-semibold text-ink underline underline-offset-2 hover:text-cyan sm:inline-flex sm:min-h-[40px] sm:items-center sm:rounded-full sm:bg-ink sm:px-5 sm:py-1.5 sm:text-sm sm:font-bold sm:text-white sm:no-underline sm:hover:bg-cyan">Sign in</a>
+        <button id="signoutBtn" type="button" class="hidden text-xs font-semibold text-ink underline underline-offset-2 hover:text-cyan sm:min-h-[40px] sm:rounded-full sm:border-2 sm:border-ink sm:px-4 sm:py-1.5 sm:text-sm sm:font-bold sm:no-underline sm:hover:bg-ink sm:hover:text-white">Sign out</button>
+      </div>
+      <div class="hidden sm:block"><a id="adminLink" href="/admin" class="hidden min-h-[40px] rounded-full border-2 border-ink bg-volt px-4 py-2 text-sm font-bold text-ink">Admin</a></div>
     </nav>
   </div>
 </header>
