@@ -36,7 +36,7 @@ const visibleRoadmap = () => {
   return subjects;
 };
 
-const publicUser = (u) => u && ({ userId: u.user_id, name: u.name, email: u.email, role: u.role, premium: true, progress: u.user_progress || {} });
+const publicUser = (u) => u && ({ userId: u.user_id, name: u.name, email: u.email, role: u.role, premium: true, progress: u.user_progress || {}, profile: { name: u.name, grade: u.grade, school: u.school, stream: u.stream } });
 
 const router = express.Router();
 
@@ -58,6 +58,27 @@ router.put('/progress', requireAuth, async (req, res, next) => {
     }
     await query('UPDATE users SET user_progress = $2::jsonb, updated_at = now() WHERE user_id = $1', [req.user.user_id, JSON.stringify(clean)]);
     res.json({ ok: true, saved: Object.keys(clean).length });
+  } catch (err) { next(err); }
+});
+
+router.put('/profile', requireAuth, async (req, res, next) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body) || typeof body.name !== 'string') return res.status(400).json({ error: 'bad_request' });
+    const name = body.name.trim();
+    const grade = body.grade;
+    const school = body.school;
+    const stream = body.stream;
+    if (name.length < 1 || name.length > 80 ||
+        !(grade === null || (Number.isInteger(grade) && grade >= 9 && grade <= 12)) ||
+        typeof school !== 'string' || school.trim().length > 120 ||
+        !(stream === null || stream === 'natural' || stream === 'social')) return res.status(400).json({ error: 'bad_request' });
+    const cleanSchool = school.trim() || null;
+    const { rows } = await query(
+      'UPDATE users SET name=$2, grade=$3, school=$4, stream=$5, updated_at=now() WHERE user_id=$1 RETURNING name, grade, school, stream',
+      [req.user.user_id, name, grade, cleanSchool, stream]);
+    if (!rows[0]) return res.status(401).json({ error: 'auth_required' });
+    res.json({ ok: true, profile: rows[0] });
   } catch (err) { next(err); }
 });
 

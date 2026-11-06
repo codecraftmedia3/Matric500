@@ -35,8 +35,8 @@
       <input id="q" placeholder="Search name or email" class="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm focus:border-cyan focus:outline-none sm:w-60">
       <select id="fStatus" class="rounded-lg border border-line bg-bg px-2 py-2 text-sm"><option value="">All status</option><option value="active">Active</option><option value="banned">Banned</option></select>
     </div>
-    <div class="overflow-x-auto"><table class="w-full min-w-[760px] text-left text-sm">
-      <thead class="font-mono text-[11px] uppercase tracking-widest text-muted"><tr><th class="py-2">User</th><th>Status</th><th>Joined</th><th class="w-40">Progress</th><th class="text-right">Actions</th></tr></thead>
+    <div class="overflow-x-auto"><table class="w-full min-w-[1020px] text-left text-sm">
+      <thead class="font-mono text-[11px] uppercase tracking-widest text-muted"><tr><th class="py-2">User</th><th>Status</th><th>Grade</th><th>School</th><th>Field</th><th>Joined</th><th class="w-40">Progress</th><th class="text-right">Actions</th></tr></thead>
       <tbody id="rows" class="divide-y divide-line"></tbody>
     </table></div>
     <div class="mt-3 flex items-center justify-between font-mono text-xs text-muted"><span id="pageInfo"></span><div class="flex gap-2"><button id="prev" class="rounded border border-line px-3 py-1.5 hover:border-cyan disabled:opacity-30">Prev</button><button id="next" class="rounded border border-line px-3 py-1.5 hover:border-cyan disabled:opacity-30">Next</button></div></div>
@@ -97,12 +97,15 @@ async function loadUsers() {
     <tr data-id="${u.user_id}" class="cursor-pointer hover:bg-surface2 ${state.sel === u.user_id ? 'bg-surface2' : ''}">
       <td class="py-2.5"><div class="font-bold">${esc(u.name)}${u.role === 'admin' ? ' <span class="rounded bg-ink px-1.5 text-[10px] text-volt">ADMIN</span>' : ''}</div><div class="font-mono text-xs text-muted">${esc(u.email)}</div></td>
       <td><span class="font-mono text-xs ${u.account_status === 'banned' ? 'text-magenta' : 'text-cyan'}">${esc(u.account_status)}</span></td>
+      <td>${u.grade == null ? '-' : esc(u.grade)}</td>
+      <td>${u.school ? esc(u.school) : '-'}</td>
+      <td>${u.stream === 'natural' ? 'Natural Science' : u.stream === 'social' ? 'Social Science' : '-'}</td>
       <td class="font-mono text-xs text-muted">${new Date(u.registration_date).toLocaleDateString()}</td>
       <td><div class="h-2 overflow-hidden rounded-full bg-bg"><div class="h-2 rounded-full bg-cyan" style="width:${u.completionPct}%"></div></div><span class="font-mono text-[11px] text-muted">${u.done_count}/${d.totalNodes} · ${u.completionPct}%</span></td>
       <td class="whitespace-nowrap text-right">
         ${u.role === 'admin' ? '' : `<button data-act="ban" class="rounded border px-2 py-1 text-xs font-bold ${u.account_status === 'banned' ? 'border-cyan text-cyan' : 'border-magenta text-magenta'}">${u.account_status === 'banned' ? 'Unban' : 'Ban'}</button>`}
         <button data-act="reset" class="ml-1 rounded border border-ink px-2 py-1 text-xs font-bold text-ink">Reset tokens</button></td>
-    </tr>`).join('') || '<tr><td colspan="5" class="py-6 text-center text-muted">No users match.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="8" class="py-6 text-center text-muted">No users match.</td></tr>';
   $('pageInfo').textContent = `Page ${d.page} / ${d.pages} · ${d.total} users`;
   $('prev').disabled = d.page <= 1; $('next').disabled = d.page >= d.pages;
 }

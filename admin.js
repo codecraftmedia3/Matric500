@@ -34,7 +34,7 @@ router.get('/users', async (req, res, next) => {
     const status = ['active', 'banned'].includes(req.query.status) ? req.query.status : null;
     const tier = ['personal', 'commercial'].includes(req.query.tier) ? req.query.tier : null;
     const { rows } = await query(
-      `SELECT user_id, name, email, registration_date, subscription_tier, subscription_verified_until, account_status, ban_reason, role, last_login_at,
+      `SELECT user_id, name, email, registration_date, subscription_tier, subscription_verified_until, account_status, ban_reason, role, last_login_at, grade, school, stream,
               (SELECT count(*) FROM jsonb_each_text(user_progress) e WHERE e.value = 'done')::int AS done_count,
               count(*) OVER()::int AS total
        FROM users
