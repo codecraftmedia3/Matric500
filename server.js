@@ -11,6 +11,7 @@ const auth = require('./auth');
 const roadmap = require('./roadmap');
 const admin = require('./admin');
 const aiRoutes = require('./ai-routes');
+const news = require('./news-routes');
 
 /* ---------- fail fast on bad configuration ---------- */
 if (!process.env.GOOGLE_CLIENT_ID) console.warn('[config] GOOGLE_CLIENT_ID not set: Google sign-in is disabled');
@@ -44,6 +45,8 @@ app.use('/api', auth.requireFetchHeader, auth.loadUser, roadmap.entitlements);
 app.use('/api/auth', auth.router);
 app.use('/api', roadmap.router);                  // public roadmap routes, gated by entitlements middleware
 app.use('/api', aiRoutes);
+app.use('/api', news.user);
+app.use('/api/admin', news.admin);
 app.use('/api/admin', admin.router);              // admin-only
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
