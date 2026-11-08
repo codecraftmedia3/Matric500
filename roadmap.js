@@ -62,9 +62,9 @@ for (const [key, s] of Object.entries(data.subjects)) {
 const TOTAL_NODES = Object.keys(INDEX).length;
 
 const myStream = (u) => (u && u.stream) || null;
-const visibleSubjects = (u) => Object.fromEntries(
-  Object.entries(data.subjects).filter(([, s]) => s.stream === 'both' || s.stream === myStream(u))
-);
+const visibleSubjects = (u) => u && u.role === 'admin'
+  ? data.subjects
+  : Object.fromEntries(Object.entries(data.subjects).filter(([, s]) => s.stream === 'both' || s.stream === myStream(u)));
 const visibleKeys = (u) => new Set(Object.keys(visibleSubjects(u)));
 const visibleIds = (u) => Object.keys(INDEX).filter((id) => visibleKeys(u).has(INDEX[id].key));
 
