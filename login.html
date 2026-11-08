@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Sign in · Matric500</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script>
   tailwind.config = { theme: { extend: {
-    colors: { bg:'#F3F4EE', surface:'#FFFFFF', surface2:'#E9EFE1', line:'#DDE2D8', ink:'#0F2A23', muted:'#3F544B', cyan:'#1F6B4F', magenta:'#C23B22', purple:'#0F2A23', volt:'#C8F25A', coral:'#FF6F4D' },
-    fontFamily: { display:['"Bricolage Grotesque"','Figtree','sans-serif'], sans:['Figtree','system-ui','sans-serif'], mono:['"IBM Plex Mono"','monospace'] }
+    colors: { bg:'#F3F4EE', surface:'#FFFFFF', surface2:'#E9EFE1', line:'#DDE2D8', ink:'#0F2A23', muted:'#3F544B', cyan:'#1F6B4F', magenta:'#C23B22', volt:'#C8F25A', coral:'#FF6F4D' },
+    fontFamily: { display:['"Bricolage Grotesque"','Figtree','sans-serif'], sans:['Figtree','system-ui','sans-serif'] }
   } } };
 </script>
 <style>
@@ -19,37 +19,26 @@
 </style>
 </head>
 <body class="min-h-screen bg-bg font-sans text-ink antialiased">
-
 <header class="border-b border-line">
   <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
     <a href="/" class="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-ink">
       <span class="grid h-9 w-9 place-items-center rounded-xl bg-ink" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8F25A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v13a3 3 0 0 0 3 3h9"/><path d="M12 4v8"/></svg></span>Matric500
     </a>
-    <a href="/" class="inline-flex min-h-[40px] items-center rounded-full border-2 border-ink px-4 py-1.5 text-sm font-bold text-ink hover:bg-ink hover:text-white">← Back to roadmap</a>
+    <a href="/" class="inline-flex min-h-[40px] items-center rounded-full border-2 border-ink px-4 py-1.5 text-sm font-bold text-ink hover:bg-ink hover:text-white">← Back</a>
   </div>
 </header>
-
 <main class="mx-auto flex max-w-6xl justify-center px-4 py-12 sm:px-6 sm:py-20">
   <div class="w-full max-w-md rounded-[28px] border border-line bg-surface p-7 shadow-xl shadow-black/10 sm:p-9">
+    <div class="mb-6 flex items-center justify-between">
+      <h1 id="stepLabel" class="font-display text-3xl font-extrabold leading-tight tracking-tight">Step 1 of 2</h1>
+      <button id="signOutBtn" type="button" class="hidden text-sm font-bold text-ink underline">Not you? Sign out</button>
+    </div>
 
-    <h1 class="font-display text-3xl font-extrabold leading-tight tracking-tight">Sign in to Matric500</h1>
-    <p class="mt-2 text-base leading-relaxed text-muted">Keep your progress on every device. You can also use the roadmap as a guest.</p>
-
-    <!-- shown when someone is already signed in -->
-    <section id="signedIn" class="mt-6 hidden space-y-3">
-      <p class="rounded-2xl bg-surface2 p-4 text-sm">Signed in as <b id="whoName"></b><span id="whoEmail" class="block text-muted"></span></p>
-      <a href="/" class="flex min-h-[48px] items-center justify-center rounded-full bg-ink px-5 py-3 text-base font-bold text-white hover:bg-cyan">Continue to roadmap</a>
-      <a id="adminDash" href="/admin" class="hidden min-h-[48px] items-center justify-center rounded-full border-2 border-ink bg-volt px-5 py-3 text-base font-bold text-ink">Open admin dashboard</a>
-      <button id="signOutBtn" class="flex min-h-[48px] w-full items-center justify-center rounded-full border-2 border-ink px-5 py-3 text-base font-bold text-ink hover:bg-ink hover:text-white">Sign out</button>
-    </section>
-
-    <!-- shown when signed out -->
-    <section id="signedOut" class="mt-6 space-y-5">
+    <section id="step1" class="space-y-5">
       <div>
         <div id="gsiBtn" class="flex min-h-[44px] justify-center"></div>
         <p id="gsiMsg" class="mt-3 min-h-[1rem] text-center text-sm text-muted" role="status">Loading sign-in…</p>
       </div>
-
       <div id="adminBox" class="hidden space-y-3 border-t border-line pt-5">
         <button id="adminToggle" type="button" class="w-full text-center text-sm font-bold text-cyan underline hover:text-ink" aria-expanded="false" aria-controls="adminForm">Admin sign in</button>
         <form id="adminForm" class="hidden space-y-3 text-left">
@@ -61,13 +50,45 @@
           <button class="flex min-h-[48px] w-full items-center justify-center rounded-full bg-ink px-5 py-3 text-base font-bold text-white hover:bg-cyan">Sign in as admin</button>
         </form>
       </div>
-
-      <div class="border-t border-line pt-5 text-center">
-        <a href="/" class="text-sm font-bold text-ink underline hover:text-cyan">Continue as a guest</a>
-        <p class="mt-1 text-xs text-muted">Guest progress is saved on this device only.</p>
-      </div>
     </section>
 
+    <section id="step2" class="hidden">
+      <form id="profileForm" class="space-y-4" novalidate>
+        <div>
+          <label for="pName" class="text-xs font-bold uppercase tracking-widest text-muted">Full name</label>
+          <input id="pName" type="text" maxlength="80" class="mt-1 w-full rounded-xl border border-line bg-bg px-3 py-3 text-base text-ink" placeholder="Your full name">
+          <p id="errName" class="mt-1 min-h-[1.2rem] text-sm text-magenta"></p>
+        </div>
+        <div>
+          <label for="pGrade" class="text-xs font-bold uppercase tracking-widest text-muted">Grade</label>
+          <select id="pGrade" class="mt-1 w-full rounded-xl border border-line bg-bg px-3 py-3 text-base text-ink"><option value="">Select grade</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select>
+          <p id="errGrade" class="mt-1 min-h-[1.2rem] text-sm text-magenta"></p>
+        </div>
+        <div>
+          <label for="pSchool" class="text-xs font-bold uppercase tracking-widest text-muted">School</label>
+          <input id="pSchool" type="text" maxlength="120" class="mt-1 w-full rounded-xl border border-line bg-bg px-3 py-3 text-base text-ink" placeholder="School name">
+          <p id="errSchool" class="mt-1 min-h-[1.2rem] text-sm text-magenta"></p>
+        </div>
+        <fieldset>
+          <legend class="text-xs font-bold uppercase tracking-widest text-muted">Field of study</legend>
+          <div class="mt-2 grid grid-cols-2 gap-3">
+            <label class="cursor-pointer rounded-2xl border border-line bg-bg p-3 text-center text-sm font-bold text-ink has-[:checked]:border-ink has-[:checked]:bg-volt">
+              <input type="radio" name="stream" value="natural" class="sr-only">
+              <span>Natural Science</span>
+            </label>
+            <label class="cursor-pointer rounded-2xl border border-line bg-bg p-3 text-center text-sm font-bold text-ink has-[:checked]:border-ink has-[:checked]:bg-volt">
+              <input type="radio" name="stream" value="social" class="sr-only">
+              <span>Social Science</span>
+            </label>
+          </div>
+          <p id="errStream" class="mt-1 min-h-[1.2rem] text-sm text-magenta"></p>
+        </fieldset>
+        <div class="pt-2">
+          <button id="saveProfileBtn" type="submit" class="flex min-h-[48px] w-full items-center justify-center rounded-full bg-ink px-5 py-3 text-base font-bold text-white hover:bg-cyan disabled:opacity-50">Save and continue</button>
+          <p id="profileStatus" class="mt-2 min-h-[1.2rem] text-center text-sm text-muted" role="status"></p>
+        </div>
+      </form>
+    </section>
   </div>
 </main>
 
