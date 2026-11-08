@@ -1,184 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>MATRIC500 · Curriculum Roadmap</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<script>
-  tailwind.config = { theme: { extend: {
-    colors: { bg:'#F3F4EE', surface:'#FFFFFF', surface2:'#E9EFE1', line:'#DDE2D8', ink:'#0F2A23', muted:'#3F544B', cyan:'#1F6B4F', magenta:'#C23B22', purple:'#0F2A23', volt:'#C8F25A', coral:'#FF6F4D' },
-    fontFamily: { display:['"Bricolage Grotesque"','Figtree','sans-serif'], sans:['Figtree','system-ui','sans-serif'], mono:['"IBM Plex Mono"','monospace'] }
-  } } };
-</script>
-<style>
-  /* Tree connectors: every .tree-item draws its own spine segment + elbow, coloured by its grade tier (--c) */
-  .branch { margin-left: 12px; padding-left: 22px; }
-  .tree-item { position: relative; padding-top: 10px; }
-  .tree-item::before { content:''; position:absolute; left:-22px; top:34px; width:22px; height:2px; background:var(--c); }
-  .tree-item::after  { content:''; position:absolute; left:-22px; top:0; bottom:0; width:2px; background:var(--c); }
-  .tree-item:last-child::after { bottom:auto; height:35px; }
-  :focus-visible { outline: 3px solid #0F2A23; outline-offset: 2px; }
-  .dark :focus-visible { outline-color: #C8F25A; }
-  .is-done { background: color-mix(in srgb, var(--c) 22%, #fff); }
-  .is-done .ttl { text-decoration: line-through; opacity:.75; }
-  .is-done .chk { background: var(--c); color: var(--k, #0F2A23); }
-  .is-done .chk::after { content:'✓'; }
-  .is-hard { border-style: dashed !important; box-shadow: 0 0 0 3px rgba(194,59,34,.35); }
-  .is-hard .chk { background:#C23B22; border-color:#C23B22; color:#fff; }
-  .is-hard .chk::after { content:'⚑'; }
-  .chev { transition: transform .2s; } [aria-expanded="true"] .chev { transform: rotate(90deg); }
-  @media (max-width: 639px) { .mobile-nav-hidden { display:none !important; } }
-  @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Matric500</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500..800&family=Figtree:wght@400..700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: { bg:'#F3F4EE', surface:'#FFFFFF', line:'#DDE2D8', ink:'#0F2A23', muted:'#3F544B', cyan:'#1F6B4F', volt:'#C8F25A', coral:'#FF6F4D', magenta:'#C23B22' },
+      fontFamily: { display:['"Bricolage Grotesque"','Figtree','sans-serif'], sans:['Figtree','system-ui','sans-serif'] }
+    } } };
+  </script>
+  <style>
+    :focus-visible { outline: 3px solid #0F2A23; outline-offset: 2px; }
+    body { background:#F3F4EE; }
+    .topTab[aria-current="page"] { background:#C8F25A; }
+    .tab[aria-current="page"] .tab-pill { background:#C8F25A; }
+    .tab[aria-current="page"] .tab-label { font-weight:800; color:#0F2A23; }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
+  </style>
 </head>
 <body class="min-h-screen bg-bg font-sans text-ink antialiased">
-
-<header class="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
-  <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-    <button id="brand" class="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-ink">
-      <span class="grid h-9 w-9 place-items-center rounded-xl bg-ink" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8F25A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v13a3 3 0 0 0 3 3h9"/><path d="M12 4v8"/></svg></span>Matric500
-    </button>
-    <nav class="flex items-center justify-end gap-2 sm:gap-3" aria-label="Main">
-      <div class="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
-        <button id="dashBtn" type="button" aria-label="My progress" title="My progress" class="grid h-10 w-10 place-items-center rounded-full border-2 border-ink text-ink hover:bg-ink hover:text-white sm:inline-flex sm:h-auto sm:w-auto sm:min-h-[40px] sm:items-center sm:px-4 sm:py-1.5 sm:text-sm sm:font-bold">
-          <svg class="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4"/></svg>
-          <span class="hidden sm:inline">My progress</span>
-        </button>
-        <button id="helpBtn" type="button" class="hidden text-xs font-semibold text-ink underline underline-offset-2 hover:text-cyan sm:min-h-[40px] sm:rounded-full sm:border-2 sm:border-ink sm:px-4 sm:py-1.5 sm:text-sm sm:font-bold sm:no-underline sm:hover:bg-ink sm:hover:text-white">How to use</button>
-        <a id="signinBtn" href="login.html" class="text-xs font-semibold text-ink underline underline-offset-2 hover:text-cyan sm:inline-flex sm:min-h-[40px] sm:items-center sm:rounded-full sm:bg-ink sm:px-5 sm:py-1.5 sm:text-sm sm:font-bold sm:text-white sm:no-underline sm:hover:bg-cyan">Sign in</a>
-        <button id="signoutBtn" type="button" class="hidden text-xs font-semibold text-ink underline underline-offset-2 hover:text-cyan sm:min-h-[40px] sm:rounded-full sm:border-2 sm:border-ink sm:px-4 sm:py-1.5 sm:text-sm sm:font-bold sm:no-underline sm:hover:bg-ink sm:hover:text-white">Sign out</button>
-      </div>
-      <div class="hidden sm:block"><a id="adminLink" href="/admin" class="hidden min-h-[40px] rounded-full border-2 border-ink bg-volt px-4 py-2 text-sm font-bold text-ink">Admin</a></div>
-    </nav>
-  </div>
-</header>
-
-<main>
-  <section id="view-home" class="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:px-6">
-    <div class="flex flex-wrap items-center gap-10 lg:flex-nowrap">
-      <div class="min-w-0 flex-1 basis-[420px] space-y-6">
-        <span class="inline-flex items-center gap-2.5 rounded-full border border-line bg-surface py-2 pl-2.5 pr-4 text-sm font-semibold"><span class="h-2.5 w-2.5 rounded-full border-2 border-ink bg-volt"></span>Grade 9 to Grade 12 curriculum roadmap</span>
-        <h1 class="font-display text-5xl font-extrabold leading-[0.98] tracking-tight sm:text-7xl">Know what to study.<br><span style="background:linear-gradient(transparent 58%,#C8F25A 58%,#C8F25A 92%,transparent 92%)">Tick it off.</span><br>Walk in ready.</h1>
-        <p class="max-w-xl text-xl leading-relaxed text-muted">Pick a subject and follow the tree from Grade 9 to Grade 12, one topic at a time. Your progress is saved as you go.</p>
-        <div class="flex flex-wrap items-center gap-3">
-          <a href="#subjects" class="inline-flex min-h-[48px] items-center rounded-full bg-ink px-7 py-3 text-base font-bold text-white hover:bg-cyan">Choose a subject</a>
-          <button data-godash class="inline-flex min-h-[48px] items-center rounded-full border-2 border-ink px-7 py-3 text-base font-bold text-ink hover:bg-ink hover:text-white">See my progress</button>
-        </div>
-        <div id="tierKey" class="flex flex-wrap gap-2 pt-2"></div>
-      </div>
-      <div id="heroPanel" class="dark w-full min-w-0 max-w-[560px] flex-1 basis-[420px] rounded-[32px] bg-ink p-6 text-white"></div>
-    </div>
-    <div id="subjects" class="pt-20">
-      <p class="text-sm font-bold uppercase tracking-widest text-muted">Subjects</p>
-      <h2 class="mt-3 max-w-2xl font-display text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">Pick a subject, not just a topic.</h2>
-      <div id="subjectGrid" class="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4"></div>
-    </div>
-  </section>
-
-  <section id="view-subject" class="mx-auto hidden max-w-3xl px-4 pb-32 pt-6 sm:px-6">
-    <button data-home class="text-sm font-bold text-muted hover:text-ink">← All subjects</button>
-    <div id="subjectTree" class="mt-4"></div>
-  </section>
-
-  <section id="view-dash" class="mx-auto hidden max-w-4xl px-4 pb-24 pt-6 sm:px-6">
-    <button data-home class="text-sm font-bold text-muted hover:text-ink">← All subjects</button>
-    <h1 class="mb-6 mt-4 font-display text-2xl font-extrabold">Your dashboard</h1>
-    <div class="grid gap-4 md:grid-cols-2">
-      <div class="rounded-2xl border border-line bg-surface p-5">
-        <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">Profile</h2>
-        <div id="profileEdit" class="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div>
-            <label for="nameInput" class="text-xs text-muted">Display name</label>
-            <input id="nameInput" maxlength="80" autocomplete="name" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink" placeholder="e.g. Selam">
-          </div>
-          <div>
-            <label for="gradeInput" class="text-xs text-muted">Grade</label>
-            <select id="gradeInput" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink">
-              <option value="">Select grade</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
-            </select>
-          </div>
-          <div>
-            <label for="schoolInput" class="text-xs text-muted">School</label>
-            <input id="schoolInput" maxlength="120" class="mt-1 w-full rounded-lg border border-line bg-bg px-3 py-2 text-ink" placeholder="School name">
-          </div>
-          <fieldset class="text-xs text-muted">
-            <legend>Field of study</legend>
-            <div class="mt-2 flex flex-wrap gap-4 text-sm text-ink">
-              <label for="streamNatural" class="flex items-center gap-2"><input id="streamNatural" type="radio" name="streamInput" value="natural" class="accent-cyan">Natural Science</label>
-              <label for="streamSocial" class="flex items-center gap-2"><input id="streamSocial" type="radio" name="streamInput" value="social" class="accent-cyan">Social Science</label>
-            </div>
-          </fieldset>
-        </div>
-        <div id="profileRead" class="hidden space-y-1 text-sm text-ink" aria-live="polite"></div>
-        <div class="mt-3 flex items-center gap-3">
-          <button id="profileSaveBtn" type="button" class="rounded-full bg-ink px-5 py-2 text-sm font-bold text-white hover:bg-cyan">Save</button>
-          <button id="profileEditBtn" type="button" class="hidden rounded-full border-2 border-ink px-5 py-2 text-sm font-bold text-ink hover:bg-ink hover:text-white">Edit</button>
-          <button id="profileCancelBtn" type="button" class="hidden text-sm text-muted underline hover:text-ink">Cancel</button>
-        </div>
-        <p id="profileHint" class="mt-2 text-xs text-muted"></p>
-        <p id="saveNote" class="mt-1 min-h-4 text-xs text-muted" role="status" aria-live="polite"></p>
-        <h2 class="mb-2 mt-4 text-xs font-bold uppercase tracking-widest text-cyan">Overall progress</h2>
-        <div id="overall"></div>
-      </div>
-      <div class="rounded-2xl border border-line bg-surface p-5">
-        <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">By subject &amp; grade</h2>
-        <div id="gradeStats" class="space-y-3"></div>
-      </div>
-      <div class="rounded-2xl border border-line bg-surface p-5 md:col-span-2">
-        <h2 class="mb-3 text-xs font-bold uppercase tracking-widest text-cyan">Marked challenging</h2>
-        <ul id="hardList" class="divide-y divide-line"></ul>
-      </div>
-    </div>
-  </section>
-</main>
-
-<!-- Detail modal -->
-<div id="nodeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-ink/70 p-4" role="dialog" aria-modal="true" aria-labelledby="nmTitle">
-  <div class="w-full max-w-md rounded-2xl border-2 bg-surface p-6 shadow-2xl" id="nmBox">
-    <span id="nmKind" class="inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"></span>
-    <h3 id="nmTitle" class="mt-2 font-display text-xl font-bold text-ink"></h3>
-    <p id="nmText" class="mt-2 text-sm leading-relaxed text-muted"></p>
-    <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" id="nmActions">
-      <button data-set="done" class="rounded-lg border border-muted py-2 text-xs font-bold text-muted hover:bg-muted hover:text-bg">✓ Done</button>
-      <button data-set="" class="rounded-lg border border-cyan py-2 text-xs font-bold text-cyan hover:bg-cyan hover:text-bg">Not started</button>
-      <button data-set="challenging" class="rounded-lg border border-magenta py-2 text-xs font-bold text-magenta hover:bg-magenta hover:text-white">⚑ Challenging</button>
-      <button data-close class="rounded-lg border border-line py-2 text-xs font-bold text-muted hover:bg-line">Close</button>
+  <div id="gate" class="fixed inset-0 z-[80] hidden items-center justify-center bg-ink/80 p-4" role="dialog" aria-modal="true" aria-labelledby="gateTitle" aria-describedby="gateText">
+    <div class="w-full max-w-sm rounded-[28px] bg-surface p-7 text-center shadow-2xl">
+      <span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-ink"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C8F25A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v13a3 3 0 0 0 3 3h9"/><path d="M12 4v8"/></svg></span>
+      <h2 id="gateTitle" class="mt-5 font-display text-3xl font-extrabold tracking-tight"></h2>
+      <p id="gateText" class="mt-2 text-base leading-relaxed text-muted"></p>
+      <a id="gateBtn" href="/login.html" class="mt-6 flex min-h-[48px] items-center justify-center rounded-full bg-ink px-6 py-3 text-base font-bold text-white hover:bg-cyan">Sign in to continue</a>
     </div>
   </div>
-</div>
 
-<!-- Onboarding popout (roadmap page only) -->
-<div id="tourModal" class="fixed inset-0 z-[55] hidden items-end justify-center bg-ink/70 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
-  <div class="w-full max-w-md rounded-2xl border-2 border-cyan bg-surface p-6 shadow-2xl">
-    <div class="flex items-center justify-between"><span id="tourStep" class="text-[10px] font-bold uppercase tracking-widest text-cyan"></span><button id="tourSkip" class="text-xs text-muted hover:text-ink">Skip</button></div>
-    <div id="tourIcon" class="mt-3 text-4xl" aria-hidden="true"></div>
-    <h3 id="tourTitle" class="mt-1 font-display text-xl font-bold"></h3>
-    <p id="tourText" class="mt-2 min-h-[4.5rem] text-sm leading-relaxed text-muted"></p>
-    <div class="mt-4 flex items-center justify-between">
-      <div id="tourDots" class="flex gap-1.5"></div>
-      <div class="flex gap-2"><button id="tourBack" class="rounded-lg border border-line px-3 py-2 text-xs font-bold text-muted">Back</button><button id="tourNext" class="rounded-lg bg-cyan px-4 py-2 text-xs font-bold text-bg hover:bg-muted">Next</button></div>
+  <header class="sticky top-0 z-30 border-b border-line bg-bg/90 backdrop-blur">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <a href="#/home" class="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-ink">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-ink" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8F25A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v13a3 3 0 0 0 3 3h9"/><path d="M12 4v8"/></svg></span>Matric500
+      </a>
+      <nav class="hidden items-center gap-1 md:flex" aria-label="Sections">
+        <a href="#/home" data-tab="home" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Home</a>
+        <a href="#/roadmap" data-tab="roadmap" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Roadmap</a>
+        <a href="#/exams" data-tab="exams" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Exams</a>
+        <a href="#/profile" data-tab="profile" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Profile</a>
+      </nav>
+      <div class="flex items-center gap-2">
+        <button id="helpBtn" type="button" class="min-h-[40px] rounded-full border-2 border-ink px-4 text-sm font-bold hover:bg-ink hover:text-white">How to use</button>
+        <a id="adminLink" href="/admin" class="hidden min-h-[40px] items-center rounded-full border-2 border-ink bg-volt px-4 text-sm font-bold text-ink">Admin</a>
+        <button id="signoutBtn" type="button" class="min-h-[40px] rounded-full bg-ink px-5 text-sm font-bold text-white hover:bg-cyan">Sign out</button>
+      </div>
     </div>
-  </div>
-</div>
+  </header>
 
-<button id="toTop" aria-label="Back to top" class="pointer-events-none fixed bottom-5 right-5 z-40 grid h-12 w-12 translate-y-4 place-items-center rounded-full border-2 border-ink bg-magenta text-xl font-bold text-ink opacity-0 shadow-lg shadow-black/10 transition duration-300 hover:bg-magenta">↑</button>
+  <main class="mx-auto max-w-6xl px-4 pb-28 pt-8 md:pb-12 sm:px-6">
+    <section id="view-home" class="hidden"></section>
+    <section id="view-roadmap" class="hidden"></section>
+    <section id="view-subject" class="hidden"></section>
+    <section id="view-exams" class="hidden"></section>
+    <section id="view-profile" class="hidden"></section>
+  </main>
 
-<script>
-  /* Roadmap: try the API first (gives sign-in state); if the API is unreachable fall back to the bundled data so the roadmap always opens. */
-  function startApp(d) { window.ROADMAP_DATA = d; const s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s); }
-  fetch('/api/roadmap', { credentials: 'same-origin' })
-    .then((r) => { if (r.status === 403) throw new Error('banned'); if (!r.ok) throw new Error('load'); return r.json(); })
-    .catch((e) => {
-      if (e.message === 'banned') throw e;
-      return fetch('roadmap-data.json').then((r) => { if (!r.ok) throw new Error('load'); return r.json(); })
-        .then((d) => ({ user: null, googleClientId: null, adminLogin: false, subjects: d.subjects }));
-    })
-    .then(startApp)
-    .catch((e) => { document.querySelector('main').innerHTML = '<p class="p-10 text-center text-magenta">' + (e.message === 'banned' ? 'This account has been suspended.' : 'Could not load the roadmap. Please refresh.') + '</p>'; });
-</script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+  <nav id="bottomNav" aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur md:hidden" style="padding-bottom:env(safe-area-inset-bottom)">
+    <ul class="mx-auto grid max-w-md grid-cols-4">
+      <li><a href="#/home" data-tab="home" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg></span><span class="tab-label">Home</span></a></li>
+      <li><a href="#/roadmap" data-tab="roadmap" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h6"/></svg></span><span class="tab-label">Roadmap</span></a></li>
+      <li><a href="#/exams" data-tab="exams" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/></svg><i class="soon-dot absolute right-[12px] top-[3px] h-2 w-2 rounded-full border-2 border-white bg-coral" aria-hidden="true"></i></span><span class="tab-label">Exams</span></a></li>
+      <li><a href="#/profile" data-tab="profile" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span><span class="tab-label">Profile</span></a></li>
+    </ul>
+  </nav>
+
+  <script>
+    window.showGate = (mode) => {
+      const gate = document.getElementById('gate');
+      const gateTitle = document.getElementById('gateTitle');
+      const gateText = document.getElementById('gateText');
+      const gateBtn = document.getElementById('gateBtn');
+      const copy = {
+        signin: ['Welcome to Matric500', 'Your Grade 9 to 12 study roadmap. Sign in to get started.'],
+        banned: ['Account suspended', 'This account has been suspended. Contact support if you think this is a mistake.'],
+        error: ['Could not load the roadmap', 'Please check your connection and refresh the page.'],
+      }[mode] || ['Welcome back', 'Please sign in to continue.'];
+      gateTitle.textContent = copy[0];
+      gateText.textContent = copy[1];
+      gateBtn.textContent = mode === 'signin' ? 'Sign in to continue' : 'Refresh';
+      gateBtn.href = mode === 'signin' ? '/login.html' : '/';
+      gate.classList.replace('hidden', 'flex');
+      document.querySelector('main')?.setAttribute('inert', '');
+      const bottomNav = document.getElementById('bottomNav');
+      if (bottomNav) bottomNav.classList.add('hidden');
+      const aiFab = document.getElementById('aiFab'); if (aiFab) aiFab.classList.add('hidden');
+      gateBtn.focus();
+      try { localStorage.setItem('m500_seen', '1'); } catch {}
+    };
+
+    (async function boot() {
+      const gate = (mode) => window.showGate && window.showGate(mode);
+      try {
+        const cfg = await (await fetch('/api/config', { credentials: 'same-origin' })).json();
+        if (!cfg.user) return gate('signin');
+        if (cfg.user.role !== 'admin' && !cfg.user.profileComplete) return location.replace('/login.html?step=profile');
+        const r = await fetch('/api/roadmap', { credentials: 'same-origin' });
+        if (r.status === 401) return gate('signin');
+        if (r.status === 403) {
+          const e = await r.json().catch(() => ({}));
+          return e.error === 'profile_incomplete' ? location.replace('/login.html?step=profile') : gate('banned');
+        }
+        if (!r.ok) throw new Error('load');
+        const data = await r.json();
+        window.ROADMAP_DATA = { user: data.user, subjects: data.subjects, googleClientId: cfg.googleClientId };
+        const s = document.createElement('script');
+        s.src = 'app.js';
+        document.body.appendChild(s);
+      } catch { gate('error'); }
+    })();
+  </script>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 </html>

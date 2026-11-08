@@ -1,0 +1,54 @@
+{
+  "subjects": {
+    "geography": {
+      "name": "Geography",
+      "description": "Earth, people and places.",
+      "color": "#8EDCC0",
+      "stream": "social",
+      "grades": [
+        {
+          "grade": 11,
+          "chapters": [
+            {
+              "chapter_id": "geo11-c1",
+              "chapter_title": "Sample chapter",
+              "topics": [
+                {
+                  "topic_id": "geo11-c1-t1",
+                  "topic_title": "Sample topic",
+                  "explanation": "One or two sentences.",
+                  "subtopics": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "economics": {
+      "name": "Economics",
+      "description": "Choices, resources and how economies work.",
+      "color": "#FFB59E",
+      "stream": "social",
+      "grades": [
+        {
+          "grade": 12,
+          "chapters": [
+            {
+              "chapter_id": "eco12-c1",
+              "chapter_title": "Sample chapter",
+              "topics": [
+                {
+                  "topic_id": "eco12-c1-t1",
+                  "topic_title": "Sample topic",
+                  "explanation": "One or two sentences.",
+                  "subtopics": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
