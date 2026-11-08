@@ -19,10 +19,20 @@
     .topTab[aria-current="page"] { background:#C8F25A; }
     .tab[aria-current="page"] .tab-pill { background:#C8F25A; }
     .tab[aria-current="page"] .tab-label { font-weight:800; color:#0F2A23; }
-    .branch { margin: 14px 0 0 14px; padding-left: 12px; border-left: 2px solid #DDE2D8; }
-    .is-done { background:#E4F5B8 !important; }
-    .is-hard { border-style:dashed !important; border-color:#FF6F4D !important; }
-    .soon-dot { position:absolute; top:3px; right:12px; width:8px; height:8px; border-radius:50%; background:#FF6F4D; border:2px solid #fff; }
+    /* Tree connectors: every .tree-item draws its own spine segment + elbow, coloured by its grade tier (--c) */
+    .branch { margin-left:12px; padding-left:22px; }
+    .tree-item { position:relative; padding-top:10px; }
+    .tree-item::before { content:''; position:absolute; left:-22px; top:34px; width:22px; height:2px; background:var(--c); }
+    .tree-item::after  { content:''; position:absolute; left:-22px; top:0; bottom:0; width:2px; background:var(--c); }
+    .tree-item:last-child::after { bottom:auto; height:35px; }
+    .is-done { background:color-mix(in srgb, var(--c) 22%, #fff); }
+    .is-done .ttl { text-decoration:line-through; opacity:.75; }
+    .is-done .chk { background:var(--c); color:var(--k, #0F2A23); }
+    .is-done .chk::after { content:'✓'; }
+    .is-hard { border-style:dashed !important; box-shadow:0 0 0 3px rgba(194,59,34,.35); }
+    .is-hard .chk { background:#C23B22; border-color:#C23B22; color:#fff; }
+    .is-hard .chk::after { content:'⚑'; }
+    .chev { transition:transform .2s; } [aria-expanded="true"] .chev { transform:rotate(90deg); }
     @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
   </style>
 </head>
@@ -58,10 +68,7 @@
   <main class="mx-auto max-w-6xl px-4 pb-28 pt-8 md:pb-12 sm:px-6">
     <section id="view-home" class="hidden"></section>
     <section id="view-roadmap" class="hidden"></section>
-    <section id="view-subject" class="hidden">
-      <a href="#/roadmap" class="mb-5 inline-flex min-h-[44px] items-center gap-2 font-bold text-cyan hover:underline"><span aria-hidden="true">←</span> All subjects</a>
-      <div id="subjectTree"></div>
-    </section>
+    <section id="view-subject" class="hidden"></section>
     <section id="view-exams" class="hidden"></section>
     <section id="view-profile" class="hidden"></section>
   </main>
@@ -74,6 +81,35 @@
       <li><a href="#/profile" data-tab="profile" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span><span class="tab-label">Profile</span></a></li>
     </ul>
   </nav>
+
+  <div id="nodeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-ink/70 p-4" role="dialog" aria-modal="true" aria-labelledby="nmTitle">
+    <div class="w-full max-w-md rounded-2xl border-2 bg-surface p-6 shadow-2xl" id="nmBox">
+      <span id="nmKind" class="inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest"></span>
+      <h3 id="nmTitle" class="mt-2 font-display text-xl font-bold text-ink"></h3>
+      <p id="nmText" class="mt-2 text-sm leading-relaxed text-muted"></p>
+      <div class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" id="nmActions">
+        <button data-set="done" class="rounded-lg border border-muted py-2 text-xs font-bold text-muted hover:bg-muted hover:text-bg">✓ Done</button>
+        <button data-set="" class="rounded-lg border border-cyan py-2 text-xs font-bold text-cyan hover:bg-cyan hover:text-bg">Not started</button>
+        <button data-set="challenging" class="rounded-lg border border-magenta py-2 text-xs font-bold text-magenta hover:bg-magenta hover:text-white">⚑ Challenging</button>
+        <button data-close class="rounded-lg border border-line py-2 text-xs font-bold text-muted hover:bg-line">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tourModal" class="fixed inset-0 z-[55] hidden items-end justify-center bg-ink/70 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+    <div class="w-full max-w-md rounded-2xl border-2 border-cyan bg-surface p-6 shadow-2xl">
+      <div class="flex items-center justify-between"><span id="tourStep" class="text-[10px] font-bold uppercase tracking-widest text-cyan"></span><button id="tourSkip" class="text-xs text-muted hover:text-ink">Skip</button></div>
+      <div id="tourIcon" class="mt-3 text-4xl" aria-hidden="true"></div>
+      <h3 id="tourTitle" class="mt-1 font-display text-xl font-bold"></h3>
+      <p id="tourText" class="mt-2 min-h-[4.5rem] text-sm leading-relaxed text-muted"></p>
+      <div class="mt-4 flex items-center justify-between">
+        <div id="tourDots" class="flex gap-1.5"></div>
+        <div class="flex gap-2"><button id="tourBack" class="rounded-lg border border-line px-3 py-2 text-xs font-bold text-muted">Back</button><button id="tourNext" class="rounded-lg bg-cyan px-4 py-2 text-xs font-bold text-bg hover:bg-muted">Next</button></div>
+      </div>
+    </div>
+  </div>
+
+  <button id="toTop" aria-label="Back to top" class="pointer-events-none fixed right-5 z-40 grid h-12 w-12 translate-y-4 place-items-center rounded-full border-2 border-ink bg-volt text-xl font-bold text-ink opacity-0 shadow-lg shadow-black/10 transition duration-300 md:bottom-5" style="bottom:calc(env(safe-area-inset-bottom) + 140px)">↑</button>
 
   <script>
     window.showGate = (mode) => {
