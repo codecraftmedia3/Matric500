@@ -148,6 +148,6 @@
     attachEvents();
   }
 
-  if (window.location.pathname === '/login.html' || document.getElementById('gate')) return;
+  if (window.location.pathname === '/login.html') return;
   buildUI();
 })();

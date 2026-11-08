@@ -19,6 +19,10 @@
     .topTab[aria-current="page"] { background:#C8F25A; }
     .tab[aria-current="page"] .tab-pill { background:#C8F25A; }
     .tab[aria-current="page"] .tab-label { font-weight:800; color:#0F2A23; }
+    .branch { margin: 14px 0 0 14px; padding-left: 12px; border-left: 2px solid #DDE2D8; }
+    .is-done { background:#E4F5B8 !important; }
+    .is-hard { border-style:dashed !important; border-color:#FF6F4D !important; }
+    .soon-dot { position:absolute; top:3px; right:12px; width:8px; height:8px; border-radius:50%; background:#FF6F4D; border:2px solid #fff; }
     @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
   </style>
 </head>
@@ -54,7 +58,10 @@
   <main class="mx-auto max-w-6xl px-4 pb-28 pt-8 md:pb-12 sm:px-6">
     <section id="view-home" class="hidden"></section>
     <section id="view-roadmap" class="hidden"></section>
-    <section id="view-subject" class="hidden"></section>
+    <section id="view-subject" class="hidden">
+      <a href="#/roadmap" class="mb-5 inline-flex min-h-[44px] items-center gap-2 font-bold text-cyan hover:underline"><span aria-hidden="true">←</span> All subjects</a>
+      <div id="subjectTree"></div>
+    </section>
     <section id="view-exams" class="hidden"></section>
     <section id="view-profile" class="hidden"></section>
   </main>
