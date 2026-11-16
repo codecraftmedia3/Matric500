@@ -33,7 +33,7 @@ const validId = (value) => {
 };
 
 const user = express.Router();
-user.get('/news', requireAuth, async (req, res, next) => {
+user.get('/news', async (req, res, next) => {
   try {
     const rawLimit = Number(req.query.limit);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 20) : 10;
@@ -60,13 +60,13 @@ user.get('/news', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-user.get('/news/:id/image', requireAuth, async (req, res, next) => {
+user.get('/news/:id/image', async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).end();
     const { rows } = await query(
       `SELECT image_data, image_type FROM news_posts
        WHERE id = $1::bigint AND image_data IS NOT NULL AND (published OR $2)`,
-      [req.params.id, req.user.role === 'admin']
+      [req.params.id, !!(req.user && req.user.role === 'admin')]
     );
     if (!rows[0]) return res.status(404).end();
     res.set({

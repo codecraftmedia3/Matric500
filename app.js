@@ -64,7 +64,7 @@ const firstName = () => String(profile.name || (ME && ME.name) || '').trim().spl
 const hardIds = () => Object.keys(INDEX).filter((i) => status(i) === 'challenging');
 
 /* ---------- router ---------- */
-const VIEWS = ['home', 'roadmap', 'subject', 'exams', 'profile'];
+const VIEWS = ['home', 'roadmap', 'subject', 'exams', 'forum', 'profile'];
 function show(view, tab, title) {
   for (const v of VIEWS) $('view-' + v).classList.toggle('hidden', v !== view);
   document.querySelectorAll('[data-tab]').forEach((a) => (a.dataset.tab === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
@@ -81,6 +81,7 @@ function route() {
     if (!toured) startTour();
   } else if (name === 'roadmap') { renderRoadmap(); show('roadmap', 'roadmap', 'Roadmap'); }
   else if (name === 'exams')     { renderExams();   show('exams', 'exams', 'Exams'); }
+  else if (name === 'forum')     { renderForum();   show('forum', 'forum', 'Forum'); }
   else if (name === 'profile')   { renderProfile(); show('profile', 'profile', 'Profile'); }
   else                           { renderHome();    show('home', 'home'); }
 }
@@ -405,3 +406,49 @@ if (IS_ADMIN) { $('adminLink').classList.remove('hidden'); $('adminLink').classL
 route();
 syncToTop();
 { const ai = document.createElement('script'); ai.src = 'assistant.js'; document.body.appendChild(ai); }
+
+/* ---------- forum ---------- */
+async function renderForum() {
+  const root = $('view-forum');
+  root.innerHTML = `
+    <div class="mx-auto max-w-4xl">
+      <div class="mb-6 flex items-end justify-between gap-3">
+        <div>
+          <p class="font-mono text-[11px] uppercase tracking-widest text-muted">Community</p>
+          <h1 class="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Forum</h1>
+        </div>
+      </div>
+      <div id="forumPosts" class="space-y-4"></div>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('/api/news', { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });
+    if (!res.ok) throw new Error('request_failed');
+    const data = await res.json();
+    const posts = data.posts || [];
+    if (!posts.length) {
+      root.querySelector('#forumPosts').innerHTML = '<div class="rounded-2xl border border-line bg-surface p-6 text-sm text-muted">No published posts yet. Check back soon.</div>';
+      return;
+    }
+    root.querySelector('#forumPosts').innerHTML = posts.map((post) => `
+      <article class="rounded-[28px] border border-line bg-surface p-5 shadow-sm shadow-black/5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="font-mono text-[11px] uppercase tracking-widest text-muted">${esc(post.authorName || 'Matric500')}</p>
+            <h2 class="mt-1 font-display text-2xl font-extrabold text-ink">${esc(post.title)}</h2>
+          </div>
+          <span class="rounded-full bg-line px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-muted">${new Date(post.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        </div>
+        ${post.hasImage ? `<img src="/api/news/${encodeURIComponent(post.id)}/image" alt="" class="mt-4 h-52 w-full rounded-2xl object-cover" loading="lazy">` : ''}
+        <div class="mt-4 whitespace-pre-line text-base leading-relaxed text-ink">${esc(post.body)}</div>
+      </article>
+    `).join('');
+  } catch (error) {
+    root.querySelector('#forumPosts').innerHTML = '<div class="rounded-2xl border border-line bg-surface p-6 text-sm text-magenta">Could not load the forum right now. Please try again in a moment.</div>';
+  }
+}
+
+window.addEventListener('M500:news-refresh', () => {
+  if (location.hash === '#/forum') renderForum();
+});

@@ -55,6 +55,7 @@
         <a href="#/home" data-tab="home" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Home</a>
         <a href="#/roadmap" data-tab="roadmap" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Roadmap</a>
         <a href="#/exams" data-tab="exams" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Exams</a>
+        <a href="#/forum" data-tab="forum" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Forum</a>
         <a href="#/profile" data-tab="profile" class="topTab rounded-full px-4 py-2 text-sm font-bold text-ink">Profile</a>
       </nav>
       <div class="flex items-center gap-2">
@@ -70,14 +71,16 @@
     <section id="view-roadmap" class="hidden"></section>
     <section id="view-subject" class="hidden"></section>
     <section id="view-exams" class="hidden"></section>
+    <section id="view-forum" class="hidden"></section>
     <section id="view-profile" class="hidden"></section>
   </main>
 
   <nav id="bottomNav" aria-label="Primary" class="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur md:hidden" style="padding-bottom:env(safe-area-inset-bottom)">
-    <ul class="mx-auto grid max-w-md grid-cols-4">
+    <ul class="mx-auto grid max-w-md grid-cols-5">
       <li><a href="#/home" data-tab="home" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg></span><span class="tab-label">Home</span></a></li>
       <li><a href="#/roadmap" data-tab="roadmap" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h6"/></svg></span><span class="tab-label">Roadmap</span></a></li>
       <li><a href="#/exams" data-tab="exams" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11l2 2 4-4M9 17h6"/></svg><i class="soon-dot absolute right-[12px] top-[3px] h-2 w-2 rounded-full border-2 border-white bg-coral" aria-hidden="true"></i></span><span class="tab-label">Exams</span></a></li>
+      <li><a href="#/forum" data-tab="forum" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H9l-5 4v-4.5A2.5 2.5 0 0 1 4 13.5z"/></svg></span><span class="tab-label">Forum</span></a></li>
       <li><a href="#/profile" data-tab="profile" class="tab flex flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold text-muted"><span class="tab-pill relative grid h-[30px] w-[56px] place-items-center rounded-full"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></span><span class="tab-label">Profile</span></a></li>
     </ul>
   </nav>
