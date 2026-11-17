@@ -45,6 +45,71 @@ CREATE TABLE IF NOT EXISTS news_posts (
   published   boolean NOT NULL DEFAULT true,
   author_id   uuid REFERENCES users(user_id) ON DELETE SET NULL,
   created_at  timestamptz NOT NULL DEFAULT now(),
-  updated_at  timestamptz NOT NULL DEFAULT now()
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  post_kind   text    NOT NULL DEFAULT 'official'
+                              CHECK (post_kind IN ('official','community'))
 );
 CREATE INDEX IF NOT EXISTS news_posts_created_idx ON news_posts (id DESC);
+CREATE INDEX IF NOT EXISTS news_posts_feed_idx
+  ON news_posts (published, post_kind, id DESC);
+CREATE INDEX IF NOT EXISTS news_posts_feed_created_idx
+  ON news_posts (published, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS news_posts_feed_kind_created_idx
+  ON news_posts (published, post_kind, created_at DESC, id DESC);
+
+ALTER TABLE news_posts
+  ADD COLUMN IF NOT EXISTS post_kind text NOT NULL DEFAULT 'official';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'news_posts_post_kind_check'
+      AND conrelid = 'news_posts'::regclass
+  ) THEN
+    ALTER TABLE news_posts
+      ADD CONSTRAINT news_posts_post_kind_check
+      CHECK (post_kind IN ('official','community'));
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS post_comments (
+  comment_id   bigserial PRIMARY KEY,
+  post_id      bigint NOT NULL REFERENCES news_posts(id) ON DELETE CASCADE,
+  author_id    uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  parent_id    bigint REFERENCES post_comments(comment_id) ON DELETE CASCADE,
+  body         text NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
+  deleted_at   timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS post_comments_post_idx
+  ON post_comments (post_id, created_at DESC, comment_id DESC);
+CREATE INDEX IF NOT EXISTS post_comments_parent_idx
+  ON post_comments (parent_id);
+
+CREATE TABLE IF NOT EXISTS post_reactions (
+  post_id       bigint NOT NULL REFERENCES news_posts(id) ON DELETE CASCADE,
+  user_id       uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  reaction_type text NOT NULL CHECK (reaction_type IN ('like','love','helpful','insightful')),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (post_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS post_reactions_post_idx
+  ON post_reactions (post_id, reaction_type);
+
+CREATE TABLE IF NOT EXISTS post_reports (
+  report_id   bigserial PRIMARY KEY,
+  reporter_id uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  post_id     bigint REFERENCES news_posts(id) ON DELETE CASCADE,
+  comment_id  bigint REFERENCES post_comments(comment_id) ON DELETE CASCADE,
+  reason      text NOT NULL CHECK (char_length(reason) BETWEEN 1 AND 1000),
+  status      text NOT NULL DEFAULT 'open'
+              CHECK (status IN ('open','reviewing','resolved','dismissed')),
+  reviewed_by uuid REFERENCES users(user_id) ON DELETE SET NULL,
+  reviewed_at timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK ((post_id IS NOT NULL AND comment_id IS NULL)
+      OR (post_id IS NULL AND comment_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS post_reports_status_idx
+  ON post_reports (status, created_at DESC);

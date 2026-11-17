@@ -12,6 +12,7 @@ const roadmap = require('./roadmap');
 const admin = require('./admin');
 const aiRoutes = require('./ai-routes');
 const news = require('./news-routes');
+const social = require('./social-routes');
 
 /* ---------- fail fast on bad configuration ---------- */
 if (!process.env.GOOGLE_CLIENT_ID) console.warn('[config] GOOGLE_CLIENT_ID not set: Google sign-in is disabled');
@@ -36,6 +37,7 @@ app.use(helmet({
 app.use(compression());
 
 app.use('/api/admin/news', express.json({ limit: '3mb' }));
+app.use('/api/posts', express.json({ limit: '3mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: true, legacyHeaders: false }));
@@ -48,6 +50,8 @@ app.use('/api', aiRoutes);
 app.use('/api', news.user);
 app.use('/api/admin', news.admin);
 app.use('/api/admin', admin.router);              // admin-only
+app.use('/api', social.user);
+app.use('/api/admin', social.admin);              // admin-only social report routes
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'not_found' }));
 

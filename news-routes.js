@@ -40,9 +40,9 @@ user.get('/news', async (req, res, next) => {
     const rawBefore = req.query.before;
     const before = rawBefore && validId(rawBefore) ? rawBefore : String(MAX_BIGINT);
     const { rows } = await query(
-      `SELECT n.id, n.title, n.body, (n.image_data IS NOT NULL) AS has_image, n.created_at, u.name AS author_name
+      `SELECT n.id, n.title, n.body, (n.image_data IS NOT NULL) AS has_image, n.created_at, u.name AS author_name, u.user_id AS author_id
          FROM news_posts n LEFT JOIN users u ON u.user_id = n.author_id
-        WHERE n.published AND n.id < $1::bigint ORDER BY n.id DESC LIMIT $2`,
+        WHERE n.published AND n.post_kind = 'official' AND n.id < $1::bigint ORDER BY n.id DESC LIMIT $2`,
       [before, limit + 1]
     );
     const page = rows.slice(0, limit);
@@ -54,6 +54,7 @@ user.get('/news', async (req, res, next) => {
         hasImage: row.has_image,
         createdAt: row.created_at,
         authorName: row.author_name,
+        authorId: row.author_id ? String(row.author_id) : null,
       })),
       nextBefore: rows.length > limit ? String(page[page.length - 1].id) : null,
     });
@@ -65,7 +66,7 @@ user.get('/news/:id/image', async (req, res, next) => {
     if (!validId(req.params.id)) return res.status(404).end();
     const { rows } = await query(
       `SELECT image_data, image_type FROM news_posts
-       WHERE id = $1::bigint AND image_data IS NOT NULL AND (published OR $2)`,
+       WHERE id = $1::bigint AND post_kind = 'official' AND image_data IS NOT NULL AND (published OR $2)`,
       [req.params.id, !!(req.user && req.user.role === 'admin')]
     );
     if (!rows[0]) return res.status(404).end();
@@ -111,8 +112,8 @@ admin.post('/news', async (req, res, next) => {
       if (!image) return res.status(400).json({ error: 'bad_image' });
     }
     const { rows } = await query(
-      `INSERT INTO news_posts (title, body, image_data, image_type, published, author_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      `INSERT INTO news_posts (title, body, image_data, image_type, published, author_id, post_kind)
+       VALUES ($1, $2, $3, $4, $5, $6, 'official') RETURNING id`,
       [title, message, image && image.buffer, image && image.type, body.published !== false, req.user.user_id]
     );
     res.status(201).json({ ok: true, id: String(rows[0].id) });

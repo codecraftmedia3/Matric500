@@ -41,6 +41,17 @@ const requireAuth = (req, res, next) => (req.user ? next() : res.status(401).jso
 const requireAdmin = (req, res, next) =>
   !req.user ? res.status(401).json({ error: 'auth_required' })
   : req.user.role !== 'admin' ? res.status(403).json({ error: 'forbidden' }) : next();
+const isTier2 = (user) => {
+  if (!user || user.account_status === 'banned') return false;
+  if (user.role === 'admin') return true;
+  if (user.subscription_tier !== 'commercial') return false;
+  if (!user.subscription_verified_until) return false;
+  const expiresAt = new Date(user.subscription_verified_until);
+  return Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() > Date.now();
+};
+const requireTier2 = (req, res, next) =>
+  !req.user ? res.status(401).json({ error: 'auth_required' })
+  : !isTier2(req.user) ? res.status(403).json({ error: 'tier2_required' }) : next();
 /** Cheap CSRF defence: browsers can't add this header cross-site without a CORS preflight we never allow. */
 const requireFetchHeader = (req, res, next) =>
   ['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.get('X-Requested-With') === 'fetch' ? next() : res.status(403).json({ error: 'csrf' });
@@ -96,4 +107,4 @@ router.post('/admin-login', async (req, res, next) => {
 
 router.post('/logout', (req, res) => res.clearCookie(COOKIE).json({ ok: true }));
 
-module.exports = { router, loadUser, requireAuth, requireAdmin, requireFetchHeader };
+module.exports = { router, loadUser, requireAuth, requireAdmin, requireTier2, isTier2, requireFetchHeader };
