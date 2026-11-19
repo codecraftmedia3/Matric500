@@ -1,7 +1,8 @@
 'use strict';
 
 const express = require('express');
-const { query } = require('./db');
+const rateLimit = require('express-rate-limit');
+const { query, withTransaction } = require('./db');
 const { requireAuth, requireAdmin, requireTier2, isTier2 } = require('./auth');
 
 const MAX_IMAGE_BYTES = 1_500_000;
@@ -74,6 +75,20 @@ const postShape = (row, currentUserId) => ({
   currentReaction: row.current_reaction || null,
   mine: !!(currentUserId && row.author_id === currentUserId),
 });
+
+const reportSubmissionLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'report_rate_limited' },
+});
+
+function validStoredImage(row) {
+  if (!row?.image_data || !SIGNATURES[row.image_type]) return false;
+  if (row.image_data.length > MAX_IMAGE_BYTES) return false;
+  return SIGNATURES[row.image_type](row.image_data);
+}
 
 const user = express.Router();
 
@@ -157,8 +172,8 @@ user.get('/posts/:id', async (req, res, next) => {
                WHERE post_id = n.id AND user_id = $2::uuid) AS current_reaction
         FROM news_posts n LEFT JOIN users u ON u.user_id = n.author_id
        WHERE n.id = $1::bigint
-         AND (n.published OR $3)
-    `, [req.params.id, req.user?.user_id || '00000000-0000-0000-0000-000000000000', !!(req.user && req.user.role === 'admin')]);
+         AND (n.published OR $3 OR n.author_id = $4::uuid)
+    `, [req.params.id, req.user?.user_id || '00000000-0000-0000-0000-000000000000', !!(req.user && req.user.role === 'admin'), req.user?.user_id || '00000000-0000-0000-0000-000000000000']);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
     res.json({ post: postShape(rows[0], req.user?.user_id) });
   } catch (err) { next(err); }
@@ -168,12 +183,14 @@ user.get('/posts/:id/image', async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).end();
     const { rows } = await query(`
-      SELECT image_data, image_type FROM news_posts
+      SELECT image_data, image_type, published, author_id FROM news_posts
        WHERE id = $1::bigint AND image_data IS NOT NULL
-         AND (published OR $2 OR author_id = $3::uuid)
-    `, [req.params.id, !!(req.user && req.user.role === 'admin'), req.user?.user_id || '00000000-0000-0000-0000-000000000000']);
+    `, [req.params.id]);
     if (!rows[0]) return res.status(404).end();
-    res.set({ 'Content-Type': rows[0].image_type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' }).send(rows[0].image_data);
+    const post = rows[0];
+    const canAccess = post.published || !!(req.user && (req.user.role === 'admin' || String(post.author_id) === String(req.user.user_id)));
+    if (!canAccess || !validStoredImage(post)) return res.status(404).end();
+    res.set({ 'Content-Type': post.image_type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' }).send(post.image_data);
   } catch (err) { next(err); }
 });
 
@@ -240,7 +257,13 @@ user.delete('/posts/:id', requireAuth, async (req, res, next) => {
     const own = String(post.author_id) === String(req.user.user_id);
     if (post.post_kind === 'official' && req.user.role !== 'admin') return res.status(403).json({ error: 'forbidden' });
     if (post.post_kind === 'community' && req.user.role !== 'admin' && (!own || !isTier2(req.user))) return res.status(403).json({ error: 'forbidden' });
-    await query('DELETE FROM news_posts WHERE id = $1::bigint', [req.params.id]);
+    await withTransaction(async (client) => {
+      await client.query('DELETE FROM news_posts WHERE id = $1::bigint', [req.params.id]);
+      if (req.user.role === 'admin') {
+        await client.query(`INSERT INTO moderation_audit (admin_id, action, target_type, target_id, metadata)
+                            VALUES ($1, 'post_deleted', 'post', $2, '{}'::jsonb)`, [req.user.user_id, req.params.id]);
+      }
+    });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -250,12 +273,13 @@ user.get('/posts/:id/comments', async (req, res, next) => {
     if (!validId(req.params.id)) return res.status(404).json({ error: 'not_found' });
 
     const { rows: postRows } = await query(
-      'SELECT id, published FROM news_posts WHERE id = $1::bigint',
+      'SELECT id, published, author_id FROM news_posts WHERE id = $1::bigint',
       [req.params.id]
     );
     const post = postRows[0];
     if (!post) return res.status(404).json({ error: 'not_found' });
-    if (!post.published && req.user?.role !== 'admin') return res.status(404).json({ error: 'not_found' });
+    const canView = post.published || req.user?.role === 'admin' || String(post.author_id) === String(req.user?.user_id);
+    if (!canView) return res.status(404).json({ error: 'not_found' });
 
     const limit = limitFor(req.query.limit, 20);
     const before = req.query.before;
@@ -327,14 +351,21 @@ user.put('/posts/:postId/comments/:commentId', requireAuth, async (req, res, nex
 user.delete('/posts/:postId/comments/:commentId', requireAuth, async (req, res, next) => {
   try {
     if (!validId(req.params.postId) || !validId(req.params.commentId)) return res.status(400).json({ error: 'bad_id' });
-    const { rows } = await query(`
-      UPDATE post_comments SET deleted_at = now(), updated_at = now()
-       WHERE comment_id = $1::bigint AND post_id = $2::bigint
-         AND (author_id = $3::uuid OR $4)
-         AND deleted_at IS NULL
-      RETURNING comment_id
-    `, [req.params.commentId, req.params.postId, req.user.user_id, req.user.role === 'admin']);
-    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    await withTransaction(async (client) => {
+      const updated = await client.query(`
+        UPDATE post_comments SET deleted_at = now(), updated_at = now()
+         WHERE comment_id = $1::bigint AND post_id = $2::bigint
+           AND (author_id = $3::uuid OR $4)
+           AND deleted_at IS NULL
+        RETURNING comment_id
+      `, [req.params.commentId, req.params.postId, req.user.user_id, req.user.role === 'admin']);
+      if (!updated.rows[0]) throw Object.assign(new Error('not_found'), { statusCode: 404 });
+      if (req.user.role === 'admin') {
+        await client.query(`INSERT INTO moderation_audit (admin_id, action, target_type, target_id, metadata)
+                            VALUES ($1, 'comment_removed', 'comment', $2, $3::jsonb)`,
+          [req.user.user_id, req.params.commentId, JSON.stringify({ postId: req.params.postId })]);
+      }
+    });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -361,26 +392,36 @@ user.delete('/posts/:id/reactions', requireAuth, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-user.post('/posts/:id/reports', requireAuth, async (req, res, next) => {
+user.post('/posts/:id/reports', requireAuth, reportSubmissionLimiter, async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'bad_id' });
     const reason = text(req.body?.reason, 1000);
     if (!reason) return res.status(400).json({ error: 'bad_request' });
     const { rows: posts } = await query('SELECT id FROM news_posts WHERE id = $1::bigint AND published', [req.params.id]);
     if (!posts[0]) return res.status(404).json({ error: 'not_found' });
-    await query('INSERT INTO post_reports (reporter_id, post_id, reason) VALUES ($1::uuid, $2::bigint, $3)', [req.user.user_id, req.params.id, reason]);
+    try {
+      await query('INSERT INTO post_reports (reporter_id, post_id, reason) VALUES ($1::uuid, $2::bigint, $3)', [req.user.user_id, req.params.id, reason]);
+    } catch (err) {
+      if (err.code === '23505') return res.status(409).json({ error: 'duplicate_report' });
+      throw err;
+    }
     res.status(201).json({ ok: true });
   } catch (err) { next(err); }
 });
 
-user.post('/posts/:postId/comments/:commentId/reports', requireAuth, async (req, res, next) => {
+user.post('/posts/:postId/comments/:commentId/reports', requireAuth, reportSubmissionLimiter, async (req, res, next) => {
   try {
     if (!validId(req.params.postId) || !validId(req.params.commentId)) return res.status(400).json({ error: 'bad_id' });
     const reason = text(req.body?.reason, 1000);
     if (!reason) return res.status(400).json({ error: 'bad_request' });
     const { rows } = await query('SELECT comment_id FROM post_comments WHERE comment_id = $1::bigint AND post_id = $2::bigint AND deleted_at IS NULL', [req.params.commentId, req.params.postId]);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
-    await query('INSERT INTO post_reports (reporter_id, comment_id, reason) VALUES ($1::uuid, $2::bigint, $3)', [req.user.user_id, req.params.commentId, reason]);
+    try {
+      await query('INSERT INTO post_reports (reporter_id, comment_id, reason) VALUES ($1::uuid, $2::bigint, $3)', [req.user.user_id, req.params.commentId, reason]);
+    } catch (err) {
+      if (err.code === '23505') return res.status(409).json({ error: 'duplicate_report' });
+      throw err;
+    }
     res.status(201).json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -422,14 +463,33 @@ admin.put('/reports/:id', async (req, res, next) => {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'bad_id' });
     const status = req.body?.status;
     if (!['open', 'reviewing', 'resolved', 'dismissed'].includes(status)) return res.status(400).json({ error: 'bad_status' });
-    const { rows } = await query(`
-      UPDATE post_reports SET status = $1, reviewed_by = $2::uuid,
-             reviewed_at = CASE WHEN $1 IN ('resolved','dismissed') THEN now() ELSE NULL END
-       WHERE report_id = $3::bigint RETURNING report_id
-    `, [status, req.user.user_id, req.params.id]);
-    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    const result = await withTransaction(async (client) => {
+      const existing = await client.query('SELECT report_id, status, post_id, comment_id FROM post_reports WHERE report_id = $1::bigint FOR UPDATE', [req.params.id]);
+      if (!existing.rows[0]) return null;
+      const current = existing.rows[0].status;
+      const allowed = {
+        open: ['reviewing', 'resolved', 'dismissed'],
+        reviewing: ['open', 'resolved', 'dismissed'],
+        resolved: ['open'],
+        dismissed: ['open'],
+      };
+      if (status !== current && !(allowed[current] || []).includes(status)) throw Object.assign(new Error('invalid_status_transition'), { statusCode: 409 });
+      const updated = await client.query(`
+        UPDATE post_reports SET status = $1, reviewed_by = $2::uuid,
+               reviewed_at = CASE WHEN $1 IN ('resolved','dismissed') THEN now() ELSE NULL END
+         WHERE report_id = $3::bigint RETURNING report_id, post_id, comment_id
+      `, [status, req.user.user_id, req.params.id]);
+      await client.query(`INSERT INTO moderation_audit (admin_id, action, target_type, target_id, metadata)
+                          VALUES ($1, 'report_status_changed', 'report', $2, $3::jsonb)`,
+        [req.user.user_id, req.params.id, JSON.stringify({ from: current, to: status, postId: updated.rows[0].post_id, commentId: updated.rows[0].comment_id })]);
+      return updated.rows[0];
+    });
+    if (!result) return res.status(404).json({ error: 'not_found' });
     res.json({ ok: true });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.statusCode === 409) return res.status(409).json({ error: 'invalid_status_transition' });
+    next(err);
+  }
 });
 
 module.exports = { user, admin };

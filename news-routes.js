@@ -65,11 +65,14 @@ user.get('/news/:id/image', async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).end();
     const { rows } = await query(
-      `SELECT image_data, image_type FROM news_posts
-       WHERE id = $1::bigint AND post_kind = 'official' AND image_data IS NOT NULL AND (published OR $2)`,
-      [req.params.id, !!(req.user && req.user.role === 'admin')]
+      `SELECT image_data, image_type, published, author_id FROM news_posts
+       WHERE id = $1::bigint AND post_kind = 'official' AND image_data IS NOT NULL`,
+      [req.params.id]
     );
     if (!rows[0]) return res.status(404).end();
+    const post = rows[0];
+    const canAccess = post.published || !!(req.user && (req.user.role === 'admin' || String(post.author_id) === String(req.user.user_id)));
+    if (!canAccess) return res.status(404).end();
     res.set({
       'Content-Type': rows[0].image_type,
       'X-Content-Type-Options': 'nosniff',
@@ -85,7 +88,7 @@ admin.get('/news', async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT id, title, body, published, (image_data IS NOT NULL) AS has_image, created_at
-         FROM news_posts ORDER BY id DESC`
+         FROM news_posts WHERE post_kind = 'official' ORDER BY id DESC`
     );
     res.json({ posts: rows.map((row) => ({
       id: String(row.id),
@@ -160,7 +163,7 @@ admin.put('/news/:id', async (req, res, next) => {
     values.push(req.params.id);
     const { rows } = await query(
       `UPDATE news_posts SET ${updates.join(', ')}, updated_at = now()
-       WHERE id = $${values.length}::bigint RETURNING id`,
+       WHERE id = $${values.length}::bigint AND post_kind = 'official' RETURNING id`,
       values
     );
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
@@ -171,7 +174,7 @@ admin.put('/news/:id', async (req, res, next) => {
 admin.delete('/news/:id', async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'bad_id' });
-    const { rows } = await query('DELETE FROM news_posts WHERE id = $1::bigint RETURNING id', [req.params.id]);
+    const { rows } = await query("DELETE FROM news_posts WHERE id = $1::bigint AND post_kind = 'official' RETURNING id", [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'not_found' });
     res.json({ ok: true });
   } catch (err) { next(err); }

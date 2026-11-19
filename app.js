@@ -81,7 +81,7 @@ function route() {
     if (!toured) startTour();
   } else if (name === 'roadmap') { renderRoadmap(); show('roadmap', 'roadmap', 'Roadmap'); }
   else if (name === 'exams')     { renderExams();   show('exams', 'exams', 'Exams'); }
-  else if (name === 'forum')     { renderForum();   show('forum', 'forum', 'Forum'); }
+  else if (name === 'forum')     { window.SocialsUI ? window.SocialsUI.init() : renderForum();   show('forum', 'forum', 'Socials'); }
   else if (name === 'profile')   { renderProfile(); show('profile', 'profile', 'Profile'); }
   else                           { renderHome();    show('home', 'home'); }
 }
@@ -407,48 +407,530 @@ route();
 syncToTop();
 { const ai = document.createElement('script'); ai.src = 'assistant.js'; document.body.appendChild(ai); }
 
-/* ---------- forum ---------- */
-async function renderForum() {
-  const root = $('view-forum');
-  root.innerHTML = `
-    <div class="mx-auto max-w-4xl">
-      <div class="mb-6 flex items-end justify-between gap-3">
-        <div>
-          <p class="font-mono text-[11px] uppercase tracking-widest text-muted">Community</p>
-          <h1 class="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Forum</h1>
+/* ---------- forum social community ---------- */
+const forumState = {
+  kind: 'community',
+  posts: [],
+  nextBefore: null,
+  loading: false,
+  selectedPostId: null,
+  feedScroll: 0,
+  search: '',
+  comments: [],
+  commentsBefore: null,
+  commentsLoading: false,
+};
+
+const forumIcons = {
+  home: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>',
+  explore: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m15 9-2 4-4 2 2-4z"/></svg>',
+  bell: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>',
+  message: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/></svg>',
+  user: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>',
+  plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>',
+  arrow: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"/></svg>',
+  comment: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z"/></svg>',
+  share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="18" cy="19" r="2"/><path d="m8 11 8-5M8 13l8 5"/></svg>',
+};
+
+async function forumApi(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch', ...(options.headers || {}) },
+    ...options,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(data.error || 'request_failed');
+    err.status = response.status;
+    throw err;
+  }
+  return data;
+}
+
+async function forumImageToDataUrl(file) {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error('Choose a JPG, PNG or WebP image.');
+  if (file.size > 1_500_000) throw new Error('Image must be 1.5 MB or smaller.');
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Could not process this image.');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    let dataUrl = canvas.toDataURL('image/webp', 0.82);
+    if (!dataUrl.startsWith('data:image/webp')) dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    if (dataUrl.length > 2_000_000) throw new Error('Image is still too large. Try a smaller picture.');
+    return dataUrl;
+  } finally { bitmap.close(); }
+}
+
+function forumInitials(name) {
+  return String(name || 'M').trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'M';
+}
+
+function forumDate(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
+}
+
+function forumAvatar(name, size = 'h-10 w-10') {
+  return `<span class="${size} shrink-0 rounded-full bg-ink text-xs font-bold text-volt grid place-items-center" aria-hidden="true">${esc(forumInitials(name))}</span>`;
+}
+
+async function loadForumPosts(reset = false) {
+  if (forumState.loading) return;
+  forumState.loading = true;
+  const feed = document.querySelector('#forumFeedList');
+  if (feed && reset) feed.innerHTML = '<div class="rounded-2xl border border-line bg-surface p-6 text-sm text-muted">Loading community posts…</div>'; 
+  const kind = forumState.kind === 'all' ? '' : `&kind=${encodeURIComponent(forumState.kind)}`;
+  const before = reset || !forumState.nextBefore ? '' : `&before=${encodeURIComponent(forumState.nextBefore)}`;
+  try {
+    const data = await forumApi(`/api/posts?limit=10${kind}${before}`);
+    const incoming = data.posts || [];
+    forumState.posts = reset ? incoming : [...forumState.posts, ...incoming];
+    forumState.nextBefore = data.nextBefore;
+    renderForumFeed();
+  } catch (error) {
+    if (feed) feed.innerHTML = `<div class="rounded-2xl border border-line bg-surface p-6"><p class="text-sm text-magenta">Could not load the community feed.</p><button type="button" data-forum-action="retry-feed" class="mt-3 min-h-[44px] rounded-full border border-line px-4 text-sm font-bold">Try again</button></div>`;
+  } finally { forumState.loading = false; }
+}
+
+function filteredForumPosts() {
+  const query = forumState.search.trim().toLowerCase();
+  if (!query) return forumState.posts;
+  return forumState.posts.filter((post) => `${post.title} ${post.body} ${post.author?.name || ''}`.toLowerCase().includes(query));
+}
+
+function forumPostCard(post) {
+  const authorName = post.author?.name || 'Matric500';
+  const reactionCount = Number(post.reactionCount || 0);
+  const commentCount = Number(post.commentCount || 0);
+  const mine = !!post.mine;
+  const canModerate = IS_ADMIN;
+  const currentReaction = post.currentReaction;
+  return `
+    <article class="rounded-[24px] border border-line bg-surface p-4 sm:p-5" data-post-id="${esc(post.id)}">
+      <div class="flex items-start gap-3">
+        ${forumAvatar(authorName)}
+        <div class="min-w-0 flex-1">
+          <div class="flex items-start justify-between gap-3">
+            <button type="button" data-forum-action="open-post" data-id="${esc(post.id)}" class="min-w-0 text-left">
+              <span class="block truncate text-sm font-extrabold text-ink">${esc(authorName)}</span>
+              <span class="mt-0.5 block text-xs text-muted">${esc(forumDate(post.createdAt))} · ${esc(post.kind)}</span>
+            </button>
+            ${(mine || canModerate) ? `<button type="button" data-forum-action="post-menu" data-id="${esc(post.id)}" class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg text-muted hover:bg-bg" aria-label="Post options">•••</button>` : ''}
+          </div>
+          <button type="button" data-forum-action="open-post" data-id="${esc(post.id)}" class="mt-3 block w-full text-left">
+            <h2 class="font-display text-lg font-extrabold leading-snug text-ink sm:text-xl">${esc(post.title)}</h2>
+            <p class="mt-2 line-clamp-4 whitespace-pre-line text-[15px] leading-relaxed text-ink">${esc(post.body)}</p>
+          </button>
+          ${post.hasImage ? `<button type="button" data-forum-action="open-post" data-id="${esc(post.id)}" class="mt-4 block w-full overflow-hidden rounded-2xl border border-line bg-bg" aria-label="Open post"><img src="/api/posts/${encodeURIComponent(post.id)}/image" alt="" class="h-56 w-full object-cover sm:h-64" loading="lazy"></button>` : ''}
+          <div class="mt-4 flex items-center gap-1 border-t border-line pt-3 text-sm">
+            <button type="button" data-forum-action="react" data-id="${esc(post.id)}" class="flex min-h-[44px] items-center gap-2 rounded-full px-3 font-bold ${currentReaction ? 'bg-coral/15 text-magenta' : 'text-muted hover:bg-bg'}" aria-label="${currentReaction ? 'Change reaction' : 'Like post'}"><span aria-hidden="true">${currentReaction ? '♥' : '♡'}</span><span>${reactionCount}</span></button>
+            <button type="button" data-forum-action="open-post" data-id="${esc(post.id)}" class="flex min-h-[44px] items-center gap-2 rounded-full px-3 font-bold text-muted hover:bg-bg">${forumIcons.comment}<span>${commentCount}</span></button>
+            <button type="button" data-forum-action="share" data-id="${esc(post.id)}" class="ml-auto grid h-11 w-11 place-items-center rounded-full text-muted hover:bg-bg" aria-label="Share post">${forumIcons.share}</button>
+          </div>
         </div>
       </div>
-      <div id="forumPosts" class="space-y-4"></div>
-    </div>
-  `;
+    </article>`;
+}
 
-  try {
-    const res = await fetch('/api/news', { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });
-    if (!res.ok) throw new Error('request_failed');
-    const data = await res.json();
-    const posts = data.posts || [];
-    if (!posts.length) {
-      root.querySelector('#forumPosts').innerHTML = '<div class="rounded-2xl border border-line bg-surface p-6 text-sm text-muted">No published posts yet. Check back soon.</div>';
-      return;
-    }
-    root.querySelector('#forumPosts').innerHTML = posts.map((post) => `
-      <article class="rounded-[28px] border border-line bg-surface p-5 shadow-sm shadow-black/5">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="font-mono text-[11px] uppercase tracking-widest text-muted">${esc(post.authorName || 'Matric500')}</p>
-            <h2 class="mt-1 font-display text-2xl font-extrabold text-ink">${esc(post.title)}</h2>
+function renderForumFeed() {
+  const list = document.querySelector('#forumFeedList');
+  if (!list) return;
+  const posts = filteredForumPosts();
+  if (!posts.length) {
+    list.innerHTML = forumState.search
+      ? '<div class="rounded-2xl border border-line bg-surface p-8 text-center text-sm text-muted">No posts match your search.</div>'
+      : '<div class="rounded-2xl border border-line bg-surface p-8 text-center"><p class="font-display text-lg font-bold">No posts here yet</p><p class="mt-1 text-sm text-muted">The community feed is quiet for now.</p></div>';
+  } else {
+    list.innerHTML = posts.map(forumPostCard).join('') + (forumState.nextBefore
+      ? '<button type="button" data-forum-action="load-more" class="mx-auto flex min-h-[44px] items-center rounded-full border border-line bg-surface px-5 text-sm font-bold hover:border-ink">Load more</button>'
+      : '<p class="py-3 text-center text-xs text-muted">You’re all caught up</p>');
+  }
+  const count = document.querySelector('#forumCommunityCount');
+  if (count) count.textContent = `${forumState.posts.length} loaded`;
+}
+
+function renderForumShell() {
+  const root = $('view-forum');
+  const canCreate = ME && (ME.role === 'admin' || ME.premium);
+  root.innerHTML = `
+    <div class="mx-auto max-w-[1180px]">
+      <div class="grid items-start gap-5 lg:grid-cols-[176px_minmax(0,620px)_220px] xl:grid-cols-[176px_minmax(0,620px)_220px]">
+        <aside class="forum-left hidden lg:sticky lg:top-24 lg:block" aria-label="Community navigation">
+          <nav class="space-y-1">
+            <button type="button" data-forum-nav="feed" class="forum-side-active flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-bold"><span>${forumIcons.home}</span><span>Community</span></button>
+            <button type="button" data-forum-nav="explore" class="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-surface"><span>${forumIcons.explore}</span><span>Explore</span></button>
+            <button type="button" data-forum-nav="notifications" class="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-surface"><span>${forumIcons.bell}</span><span>Notifications</span></button>
+            <button type="button" data-forum-nav="messages" class="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-surface"><span>${forumIcons.message}</span><span>Messages</span></button>
+            <a href="#/profile" class="flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-surface"><span>${forumIcons.user}</span><span>Profile</span></a>
+          </nav>
+          ${canCreate ? '<button type="button" data-forum-action="open-composer" class="mt-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-ink px-4 text-sm font-bold text-white hover:bg-cyan">'+forumIcons.plus+'<span>Create post</span></button>' : ''}
+        </aside>
+        <main class="min-w-0" id="forumMainColumn">
+          <div id="forumView" class="space-y-4"></div>
+        </main>
+        <aside class="hidden lg:block lg:sticky lg:top-24" aria-label="Community information">
+          <div class="rounded-[20px] border border-line bg-surface p-4">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">Community</p>
+            <p id="forumCommunityCount" class="mt-2 text-sm font-bold text-ink">Loading…</p>
+            <p class="mt-1 text-xs leading-relaxed text-muted">Official updates and community discussions.</p>
           </div>
-          <span class="rounded-full bg-line px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-muted">${new Date(post.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-        </div>
-        ${post.hasImage ? `<img src="/api/news/${encodeURIComponent(post.id)}/image" alt="" class="mt-4 h-52 w-full rounded-2xl object-cover" loading="lazy">` : ''}
-        <div class="mt-4 whitespace-pre-line text-base leading-relaxed text-ink">${esc(post.body)}</div>
-      </article>
-    `).join('');
+          <div class="mt-4 rounded-[20px] border border-line bg-surface p-4">
+            <p class="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">Discovery</p>
+            <p class="mt-3 text-xs leading-relaxed text-muted">Follow suggestions and trending topics become available when those backend services are connected.</p>
+          </div>
+        </aside>
+      </div>
+      <button type="button" data-forum-action="open-composer" class="fixed bottom-[calc(env(safe-area-inset-bottom)+78px)] right-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-ink text-white shadow-lg lg:hidden" aria-label="Create post" ${canCreate ? '' : 'hidden'}>${forumIcons.plus}</button>
+      <div id="forumModal" class="fixed inset-0 z-[60] hidden items-end justify-center bg-ink/70 p-0 sm:items-center sm:p-4"></div>
+    </div>`;
+  renderForumFeedView();
+}
+
+function renderForumFeedView() {
+  const view = document.querySelector('#forumView');
+  if (!view) return;
+  view.innerHTML = `
+    <header class="rounded-[24px] border border-line bg-surface p-4 sm:p-5">
+      <div class="flex items-center justify-between gap-3">
+        <div><p class="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">Matric500</p><h1 class="mt-1 font-display text-2xl font-extrabold">Community</h1></div>
+        ${ME ? `<button type="button" data-forum-action="open-composer" class="grid h-11 w-11 place-items-center rounded-full bg-ink text-white" aria-label="Create post" ${ME.premium || IS_ADMIN ? '' : 'hidden'}>${forumIcons.plus}</button>` : ''}
+      </div>
+      <label class="mt-4 flex min-h-[44px] items-center gap-2 rounded-full border border-line bg-bg px-4"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span class="sr-only">Search loaded posts</span><input id="forumSearch" value="${esc(forumState.search)}" placeholder="Search posts" class="w-full bg-transparent text-sm outline-none"></label>
+      <div class="mt-3 flex gap-2 overflow-x-auto" aria-label="Feed filter">
+        ${[['community','Community'],['official','Official'],['all','All posts']].map(([kind,label]) => `<button type="button" data-forum-kind="${kind}" class="min-h-[40px] shrink-0 rounded-full px-4 text-xs font-bold ${forumState.kind === kind ? 'bg-ink text-white' : 'border border-line text-muted'}">${label}</button>`).join('')}
+      </div>
+    </header>
+    <div id="forumFeedList" class="space-y-3"></div>`;
+  renderForumFeed();
+  document.querySelector('#forumSearch')?.addEventListener('input', (event) => { forumState.search = event.target.value; renderForumFeed(); });
+}
+
+async function openForumPost(postId) {
+  forumState.feedScroll = window.scrollY;
+  forumState.selectedPostId = postId;
+  const view = document.querySelector('#forumView');
+  if (!view) return;
+  view.innerHTML = '<div class="rounded-[24px] border border-line bg-surface p-6 text-sm text-muted">Loading post…</div>';
+  try {
+    const [postData, commentData] = await Promise.all([
+      forumApi(`/api/posts/${encodeURIComponent(postId)}`),
+      forumApi(`/api/posts/${encodeURIComponent(postId)}/comments?limit=20`),
+    ]);
+    forumState.comments = commentData.comments || [];
+    forumState.commentsBefore = commentData.nextBefore;
+    renderExpandedPost(postData.post);
   } catch (error) {
-    root.querySelector('#forumPosts').innerHTML = '<div class="rounded-2xl border border-line bg-surface p-6 text-sm text-magenta">Could not load the forum right now. Please try again in a moment.</div>';
+    view.innerHTML = '<div class="rounded-[24px] border border-line bg-surface p-6"><p class="text-sm text-magenta">This post could not be opened.</p><button type="button" data-forum-action="back-feed" class="mt-3 min-h-[44px] rounded-full border border-line px-4 text-sm font-bold">Back to feed</button></div>';
   }
 }
 
-window.addEventListener('M500:news-refresh', () => {
-  if (location.hash === '#/forum') renderForum();
+function renderExpandedPost(post) {
+  const view = document.querySelector('#forumView');
+  if (!view) return;
+  const authorName = post.author?.name || 'Matric500';
+  const mine = !!post.mine;
+  view.innerHTML = `
+    <article class="overflow-hidden rounded-[24px] border border-line bg-surface">
+      <div class="sticky top-20 z-20 flex min-h-[56px] items-center gap-2 border-b border-line bg-surface/95 px-4 backdrop-blur">
+        <button type="button" data-forum-action="back-feed" class="grid h-10 w-10 place-items-center rounded-full hover:bg-bg" aria-label="Back to feed">${forumIcons.arrow}</button>
+        <p class="font-display font-extrabold">Post</p>
+      </div>
+      <div class="p-4 sm:p-5">
+        <div class="flex items-start gap-3">${forumAvatar(authorName)}<div><p class="text-sm font-extrabold">${esc(authorName)}</p><p class="text-xs text-muted">${esc(forumDate(post.createdAt))} · ${esc(post.kind)}</p></div></div>
+        <h1 class="mt-5 font-display text-2xl font-extrabold leading-tight sm:text-3xl">${esc(post.title)}</h1>
+        <div class="mt-4 whitespace-pre-line text-[15px] leading-relaxed sm:text-base">${esc(post.body)}</div>
+        ${post.hasImage ? `<img src="/api/posts/${encodeURIComponent(post.id)}/image" alt="" class="mt-5 max-h-[520px] w-full rounded-2xl border border-line object-contain bg-bg">` : ''}
+        <div class="mt-5 flex items-center gap-2 border-y border-line py-2">
+          <button type="button" data-forum-action="react" data-id="${esc(post.id)}" class="flex min-h-[44px] items-center gap-2 rounded-full px-3 font-bold ${post.currentReaction ? 'text-magenta' : 'text-muted'}"><span>${post.currentReaction ? '♥' : '♡'}</span><span>${Number(post.reactionCount || 0)}</span></button>
+          <button type="button" data-forum-action="focus-comment" class="flex min-h-[44px] items-center gap-2 rounded-full px-3 font-bold text-muted">${forumIcons.comment}<span>${Number(post.commentCount || 0)}</span></button>
+          ${(mine || IS_ADMIN) ? `<button type="button" data-forum-action="post-menu" data-id="${esc(post.id)}" class="ml-auto min-h-[44px] rounded-full px-3 text-sm font-bold text-muted">Options</button>` : ''}
+          ${ME ? `<button type="button" data-forum-action="report-post" data-id="${esc(post.id)}" class="min-h-[44px] rounded-full px-3 text-xs font-bold text-magenta">Report</button>` : ''}
+        </div>
+        <section class="mt-4">
+          <h2 class="font-display text-lg font-extrabold">Discussion</h2>
+          ${ME ? `<form id="forumCommentForm" class="mt-3 flex gap-2"><input id="forumCommentInput" maxlength="2000" required placeholder="Add to the discussion…" class="min-h-[44px] min-w-0 flex-1 rounded-full border border-line bg-bg px-4 text-sm outline-none focus:border-ink"><button type="submit" class="min-h-[44px] rounded-full bg-ink px-5 text-sm font-bold text-white">Post</button></form>` : '<p class="mt-3 text-sm text-muted">Sign in to join the discussion.</p>'}
+          <div id="forumComments" class="mt-4 space-y-3"></div>
+          ${forumState.commentsBefore ? '<button type="button" data-forum-action="load-comments" data-id="'+esc(post.id)+'" class="mt-3 min-h-[44px] rounded-full border border-line px-4 text-sm font-bold">Load earlier comments</button>' : ''}
+        </section>
+      </div>
+    </article>`;
+  renderForumComments(post);
+}
+
+function renderForumComments(post) {
+  const container = document.querySelector('#forumComments');
+  if (!container) return;
+  container.innerHTML = forumState.comments.length ? forumState.comments.map((comment) => {
+    const name = comment.author?.name || 'User';
+    const mine = !!comment.deleted ? false : comment.author?.id === ME?.userId;
+    return `<article class="flex gap-3 border-b border-line pb-3" data-comment-id="${esc(comment.id)}">
+      ${forumAvatar(name, 'h-9 w-9')}
+      <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="text-sm font-extrabold">${esc(comment.deleted ? 'Matric500' : name)}</p><span class="text-[11px] text-muted">${esc(forumDate(comment.createdAt))}</span></div>
+      <p class="mt-1 whitespace-pre-line text-sm leading-relaxed ${comment.deleted ? 'italic text-muted' : 'text-ink'}">${esc(comment.body)}</p>
+      ${!comment.deleted && ME ? `<div class="mt-2 flex gap-2"><button type="button" data-forum-action="reply-comment" data-id="${esc(comment.id)}" class="text-xs font-bold text-muted">Reply</button>${mine ? `<button type="button" data-forum-action="edit-comment" data-id="${esc(comment.id)}" class="text-xs font-bold text-muted">Edit</button><button type="button" data-forum-action="delete-comment" data-id="${esc(comment.id)}" class="text-xs font-bold text-magenta">Delete</button>` : ''}${IS_ADMIN ? `<button type="button" data-forum-action="delete-comment" data-id="${esc(comment.id)}" class="text-xs font-bold text-magenta">Remove</button>` : ''}${`<button type="button" data-forum-action="report-comment" data-post="${esc(post.id)}" data-id="${esc(comment.id)}" class="text-xs font-bold text-muted">Report</button>`}</div>` : ''}</div>
+    </article>`;
+  }).join('') : '<p class="rounded-xl bg-bg p-4 text-sm text-muted">No comments yet. Start the conversation.</p>';
+}
+
+async function forumCreatePost(payload) {
+  await forumApi('/api/posts', { method: 'POST', body: JSON.stringify(payload) });
+  closeForumModal();
+  forumState.posts = [];
+  forumState.nextBefore = null;
+  await loadForumPosts(true);
+}
+
+function openForumComposer() {
+  if (!ME) { location.href = '/login.html'; return; }
+  if (!IS_ADMIN && !ME.premium) {
+    openForumModal('<div class="w-full max-w-md rounded-[24px] bg-surface p-6"><p class="font-mono text-[10px] font-bold uppercase tracking-widest text-magenta">Community permission</p><h2 class="mt-2 font-display text-xl font-extrabold">Active community membership required</h2><p class="mt-2 text-sm text-muted">Your account does not currently have permission to publish community posts.</p><button type="button" data-forum-modal-close class="mt-5 min-h-[44px] w-full rounded-full border border-line text-sm font-bold">Close</button></div>');
+    return;
+  }
+  openForumModal(`
+    <form id="forumComposer" class="w-full max-w-lg rounded-t-[24px] bg-surface p-5 sm:rounded-[24px]">
+      <div class="flex items-center justify-between"><h2 class="font-display text-xl font-extrabold">Create post</h2><button type="button" data-forum-modal-close class="grid h-10 w-10 place-items-center rounded-full text-xl text-muted">×</button></div>
+      <div class="mt-4 flex items-center gap-3">${forumAvatar(ME.name, 'h-11 w-11')}<div><p class="text-sm font-extrabold">${esc(ME.name)}</p><p class="text-xs text-muted">${IS_ADMIN ? 'Administrator' : 'Community member'}</p></div></div>
+      ${IS_ADMIN ? '<label class="mt-4 block text-xs font-bold">Post type<select id="forumPostKind" class="mt-1 min-h-[44px] w-full rounded-xl border border-line bg-bg px-3"><option value="community">Community</option><option value="official">Official</option></select></label>' : ''}
+      <label class="mt-4 block text-xs font-bold">Title<input id="forumPostTitle" maxlength="120" required placeholder="Post title" class="mt-1 min-h-[44px] w-full rounded-xl border border-line bg-bg px-3 text-sm outline-none"></label>
+      <label class="mt-4 block text-xs font-bold">Message<textarea id="forumPostBody" maxlength="4000" required rows="5" placeholder="Share with the community…" class="mt-1 w-full rounded-xl border border-line bg-bg p-3 text-sm outline-none"></textarea></label>
+      <label class="mt-3 block min-h-[44px] cursor-pointer rounded-xl border border-dashed border-line px-4 py-3 text-center text-sm font-bold text-muted">Add JPG, PNG or WebP<input id="forumPostImage" type="file" accept="image/jpeg,image/png,image/webp" class="hidden"></label>
+      <div id="forumImagePreview" class="mt-3 hidden items-start gap-3"><img id="forumImagePreviewImg" alt="Image preview" class="max-h-48 max-w-[75%] rounded-xl object-contain"><button type="button" data-forum-action="remove-image" class="min-h-[44px] rounded-full border border-line px-3 text-xs font-bold">Remove</button></div>
+      <p id="forumComposerStatus" role="status" class="mt-3 min-h-5 text-sm text-muted"></p>
+      <div class="mt-2 flex justify-end gap-2"><button type="button" data-forum-modal-close class="min-h-[44px] rounded-full border border-line px-5 text-sm font-bold">Cancel</button><button id="forumPublish" type="submit" class="min-h-[44px] rounded-full bg-ink px-5 text-sm font-bold text-white">Publish</button></div>
+    </form>`);
+}
+
+function openForumModal(markup) {
+  const modal = document.querySelector('#forumModal');
+  if (!modal) return;
+  modal.innerHTML = markup;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function closeForumModal() {
+  const modal = document.querySelector('#forumModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  modal.innerHTML = '';
+}
+
+async function renderForumUnavailable(title, message) {
+  const view = document.querySelector('#forumView');
+  if (!view) return;
+  view.innerHTML = `<section class="rounded-[24px] border border-line bg-surface p-6 sm:p-8"><button type="button" data-forum-action="back-feed" class="mb-4 grid h-10 w-10 place-items-center rounded-full hover:bg-bg" aria-label="Back">${forumIcons.arrow}</button><p class="font-mono text-[10px] font-bold uppercase tracking-widest text-muted">Matric500 Community</p><h1 class="mt-2 font-display text-2xl font-extrabold">${esc(title)}</h1><p class="mt-3 max-w-md text-sm leading-relaxed text-muted">${esc(message)}</p></section>`;
+}
+
+async function renderForum() {
+  forumState.feedScroll = window.scrollY;
+  renderForumShell();
+  await loadForumPosts(true);
+}
+
+/* ---------- forum interactions ---------- */
+document.addEventListener('click', async (event) => {
+  const kindButton = event.target.closest('[data-forum-kind]');
+  if (kindButton) {
+    forumState.kind = kindButton.dataset.forumKind;
+    forumState.posts = [];
+    forumState.nextBefore = null;
+    renderForumFeedView();
+    await loadForumPosts(true);
+    return;
+  }
+
+  const navButton = event.target.closest('[data-forum-nav]');
+  if (navButton) {
+    const target = navButton.dataset.forumNav;
+    if (target === 'feed') {
+      forumState.selectedPostId = null;
+      renderForumFeedView();
+      renderForumFeed();
+    } else if (target === 'explore') {
+      await renderForumUnavailable('Explore', 'Discoverable users and trending topics will appear here when discovery services are connected.');
+    } else if (target === 'notifications') {
+      await renderForumUnavailable('Notifications', 'There are no notification services connected yet. Matric500 will show real activity here when notifications are implemented.');
+    } else if (target === 'messages') {
+      await renderForumUnavailable('Messages', 'Direct messaging is not available yet. This view is a UI boundary and does not contain or send placeholder messages.');
+    }
+   
+    return;
+  }
+
+  const modalClose = event.target.closest('[data-forum-modal-close]');
+  if (modalClose) { closeForumModal(); return; }
+
+  const action = event.target.closest('[data-forum-action]');
+  if (!action) return;
+  const name = action.dataset.forumAction;
+  const id = action.dataset.id;
+
+  if (name === 'open-composer') openForumComposer();
+  if (name === 'back-feed') {
+    forumState.selectedPostId = null;
+    renderForumFeedView();
+    renderForumFeed();
+    window.scrollTo({ top: forumState.feedScroll, behavior: 'auto' });
+  }
+  if (name === 'open-post') await openForumPost(id);
+  if (name === 'load-more') await loadForumPosts(false);
+  if (name === 'retry-feed') {
+    forumState.posts = [];
+    forumState.nextBefore = null;
+    await loadForumPosts(true);
+  }
+  if (name === 'focus-comment') document.querySelector('#forumCommentInput')?.focus();
+
+  if (name === 'react') {
+    if (!ME) { location.href = '/login.html'; return; }
+    try {
+      const post = forumState.posts.find((item) => item.id === id);
+      if (post?.currentReaction) await forumApi(`/api/posts/${encodeURIComponent(id)}/reactions`, { method: 'DELETE' });
+      else await forumApi(`/api/posts/${encodeURIComponent(id)}/reactions/like`, { method: 'PUT' });
+      if (forumState.selectedPostId === id) await openForumPost(id);
+      else await loadForumPosts(true);
+    } catch (error) { alert(error.message === 'tier2_required' ? 'Active membership is required.' : 'Could not update your reaction.'); }
+  }
+
+  if (name === 'share') {
+    const url = `${location.origin}${location.pathname}#/forum`;
+    try { await navigator.clipboard.writeText(url); } catch { /* Clipboard may be unavailable. */ }
+  }
+
+  if (name === 'report-post') {
+    if (!ME) { location.href = '/login.html'; return; }
+    const reason = window.prompt('Why are you reporting this post?', '');
+    if (!reason?.trim()) return;
+    try {
+      await forumApi(`/api/posts/${encodeURIComponent(id)}/reports`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) });
+      alert('Report submitted.');
+    } catch (error) { alert(error.message === 'duplicate_report' ? 'You already have an active report for this post.' : 'Could not submit the report.'); }
+  }
+
+  if (name === 'report-comment') {
+    if (!ME) { location.href = '/login.html'; return; }
+    const reason = window.prompt('Why are you reporting this comment?', '');
+    if (!reason?.trim()) return;
+    try {
+      await forumApi(`/api/posts/${encodeURIComponent(action.dataset.post)}/comments/${encodeURIComponent(id)}/reports`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) });
+      alert('Report submitted.');
+    } catch (error) { alert(error.message === 'duplicate_report' ? 'You already have an active report for this comment.' : 'Could not submit the report.'); }
+  }
+
+  if (name === 'reply-comment') {
+    if (!ME) { location.href = '/login.html'; return; }
+    const body = window.prompt('Write a reply:', '');
+    if (!body?.trim()) return;
+    try {
+      await forumApi(`/api/posts/${encodeURIComponent(forumState.selectedPostId)}/comments`, { method: 'POST', body: JSON.stringify({ body: body.trim(), parentId: id }) });
+      await openForumPost(forumState.selectedPostId);
+    } catch (error) { alert('Could not add the reply.'); }
+  }
+
+  if (name === 'edit-comment') {
+    const comment = forumState.comments.find((item) => item.id === id);
+    const body = window.prompt('Edit your comment:', comment?.body || '');
+    if (!body?.trim()) return;
+    try {
+      await forumApi(`/api/posts/${encodeURIComponent(forumState.selectedPostId)}/comments/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ body: body.trim() }) });
+      await openForumPost(forumState.selectedPostId);
+    } catch (error) { alert('Could not edit the comment.'); }
+  }
+
+  if (name === 'delete-comment') {
+    if (!window.confirm('Remove this comment?')) return;
+    try {
+      await forumApi(`/api/posts/${encodeURIComponent(forumState.selectedPostId)}/comments/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await openForumPost(forumState.selectedPostId);
+    } catch (error) { alert('Could not remove the comment.'); }
+  }
+
+  if (name === 'post-menu') {
+    const post = forumState.posts.find((item) => item.id === id);
+    const choice = window.prompt('Type EDIT or DELETE:', '');
+    if (!choice) return;
+    if (choice.trim().toLowerCase() === 'delete') {
+      if (!window.confirm('Permanently delete this post?')) return;
+      try { await forumApi(`/api/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }); await loadForumPosts(true); }
+      catch (error) { alert('Could not delete the post.'); }
+    } else if (choice.trim().toLowerCase() === 'edit') {
+      const title = window.prompt('Edit post title:', post?.title || '');
+      if (!title?.trim()) return;
+      const body = window.prompt('Edit post text:', post?.body || '');
+      if (!body?.trim()) return;
+      try {
+        await forumApi(`/api/posts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ title: title.trim(), body: body.trim() }) });
+        await loadForumPosts(true);
+      } catch (error) { alert('Could not edit the post.'); }
+    }
+  }
+
+  if (name === 'remove-image') {
+    const preview = document.querySelector('#forumImagePreview');
+    const input = document.querySelector('#forumPostImage');
+    if (preview) preview.classList.add('hidden');
+    if (input) input.value = '';
+  }
+});
+
+let forumSelectedImage = null;
+document.addEventListener('change', async (event) => {
+  if (event.target?.id !== 'forumPostImage') return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const status = document.querySelector('#forumComposerStatus');
+  if (status) status.textContent = 'Preparing image…';
+  try {
+    forumSelectedImage = await forumImageToDataUrl(file);
+    const preview = document.querySelector('#forumImagePreview');
+    const image = document.querySelector('#forumImagePreviewImg');
+    if (image) image.src = forumSelectedImage;
+    if (preview) { preview.classList.remove('hidden'); preview.classList.add('flex'); }
+    if (status) status.textContent = 'Image ready.';
+  } catch (error) {
+    forumSelectedImage = null;
+    event.target.value = '';
+    if (status) status.textContent = error.message;
+  }
+});
+
+document.addEventListener('submit', async (event) => {
+  if (event.target?.id === 'forumCommentForm') {
+    event.preventDefault();
+    const input = document.querySelector('#forumCommentInput');
+    const body = input?.value.trim();
+    if (!body) return;
+    try {
+      await forumApi(`/api/posts/${encodeURIComponent(forumState.selectedPostId)}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+      await openForumPost(forumState.selectedPostId);
+    } catch (error) { alert(error.message === 'not_found' ? 'This post is not available for comments.' : 'Could not add the comment.'); }
+  }
+
+  if (event.target?.id === 'forumComposer') {
+    event.preventDefault();
+    const title = document.querySelector('#forumPostTitle')?.value.trim();
+    const body = document.querySelector('#forumPostBody')?.value.trim();
+    const kind = document.querySelector('#forumPostKind')?.value || 'community';
+    const status = document.querySelector('#forumComposerStatus');
+    const button = document.querySelector('#forumPublish');
+    if (!title || !body) return;
+    if (button) button.disabled = true;
+    if (status) status.textContent = 'Publishing…';
+    try {
+      await forumCreatePost({ title, body, kind, published: true, ...(forumSelectedImage ? { image: forumSelectedImage } : {}) });
+      forumSelectedImage = null;
+    } catch (error) {
+      if (status) status.textContent = error.message === 'tier2_required' ? 'Active community membership is required.' : error.message === 'bad_image' ? 'The selected image is invalid or too large.' : 'Could not publish the post.';
+      if (button) button.disabled = false;
+    }
+  }
 });

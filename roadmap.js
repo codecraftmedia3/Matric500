@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { query } = require('./db');
-const { requireAuth } = require('./auth');
+const { requireAuth, isTier2 } = require('./auth');
 
 const FILES = ['roadmap-data.json', 'roadmap-social.json'];
 const STREAMS = ['natural', 'social', 'both'];
@@ -68,7 +68,7 @@ const visibleSubjects = (u) => u && u.role === 'admin'
 const visibleKeys = (u) => new Set(Object.keys(visibleSubjects(u)));
 const visibleIds = (u) => Object.keys(INDEX).filter((id) => visibleKeys(u).has(INDEX[id].key));
 
-const entitlements = (req, res, next) => { req.premium = true; next(); };
+const entitlements = (req, res, next) => { req.premium = isTier2(req.user); next(); };
 
 const guardGrade = (req, res, next) => {
   const s = data.subjects[req.params.key];
@@ -96,7 +96,7 @@ const publicUser = (u) =>
     name: u.name,
     email: u.email,
     role: u.role,
-    premium: true,
+    premium: isTier2(u),
     progress: u.user_progress || {},
     profile: { name: u.name, grade: u.grade, school: u.school, stream: u.stream },
     profileComplete: !!(u.name && u.grade && u.school && u.stream),

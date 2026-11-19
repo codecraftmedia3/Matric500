@@ -36,6 +36,24 @@ async function connectDb(retries = 5, delayMs = 2000) {
   }
 }
 const query = (text, params) => (pool ? pool.query(text, params) : Promise.reject(Object.assign(new Error('database not connected'), { code: 'NO_DB' })));
+
+async function withTransaction(work) {
+  if (!pool) throw Object.assign(new Error('database not connected'), { code: 'NO_DB' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+const getPool = () => pool;
 const close = () => pool && pool.end();
 
-module.exports = { connectDb, query, close };
+module.exports = { connectDb, query, withTransaction, getPool, close };
