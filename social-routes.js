@@ -6,6 +6,8 @@ const { query, withTransaction } = require('./db');
 const { requireAuth, requireAdmin, requireTier2, isTier2 } = require('./auth');
 
 const MAX_IMAGE_BYTES = 1_500_000;
+const MAX_VIDEO_BYTES = 8_000_000;
+const POST_TIMEZONE = (process.env.SOCIAL_POST_TIMEZONE || 'Africa/Addis_Ababa').trim();
 const MAX_BIGINT = 9223372036854775807n;
 const REACTION_TYPES = new Set(['like', 'love', 'helpful', 'insightful']);
 
@@ -56,6 +58,15 @@ const limitFor = (value, fallback = 20) => {
   return Number.isFinite(number) ? Math.min(Math.max(Math.trunc(number), 1), 50) : fallback;
 };
 
+function parseVideo(dataUrl) {
+  if (typeof dataUrl !== 'string') return null;
+  const match = /^data:(video\/(?:mp4|webm));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl);
+  if (!match) return null;
+  const buffer = Buffer.from(match[2], 'base64');
+  if (!buffer.length || buffer.length > MAX_VIDEO_BYTES || buffer.toString('base64') !== match[2]) return null;
+  return { type: match[1], buffer };
+}
+
 const postShape = (row, currentUserId) => ({
   id: String(row.id),
   kind: row.post_kind,
@@ -63,11 +74,13 @@ const postShape = (row, currentUserId) => ({
   body: row.body,
   published: row.published,
   hasImage: row.has_image,
+  hasVideo: row.has_video,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   author: {
     id: row.author_id ? String(row.author_id) : null,
     name: row.author_name || 'Matric500',
+    username: row.author_username || null,
   },
   reactionCounts: row.reaction_counts || {},
   reactionCount: Number(row.reaction_count || 0),
@@ -92,6 +105,44 @@ function validStoredImage(row) {
 
 const user = express.Router();
 
+user.get('/friends', requireAuth, async (req, res, next) => {
+  try {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+    const params = [req.user.user_id];
+    let searchSql = '';
+    if (search) {
+      params.push(search);
+      searchSql = "AND lower(u.username) LIKE '%' || $2 || '%'";
+    }
+    const { rows } = await query(`
+      SELECT u.user_id, u.name, u.username
+        FROM user_friends f
+        JOIN users u ON u.user_id = f.friend_id
+       WHERE f.user_id = $1::uuid ${searchSql}
+       ORDER BY lower(u.username), u.name
+       LIMIT 100
+    `, params);
+    res.json({ friends: rows.map((row) => ({ id: String(row.user_id), name: row.name, username: row.username })) });
+  } catch (err) { next(err); }
+});
+
+user.post('/friends/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (!req.params.id.match(/^[0-9a-f-]{36}$/i) || req.params.id === req.user.user_id) return res.status(400).json({ error: 'bad_friend' });
+    const friend = await query('SELECT user_id FROM users WHERE user_id = $1::uuid', [req.params.id]);
+    if (!friend.rows[0]) return res.status(404).json({ error: 'not_found' });
+    await query('INSERT INTO user_friends (user_id, friend_id) VALUES ($1::uuid, $2::uuid) ON CONFLICT DO NOTHING', [req.user.user_id, req.params.id]);
+    res.status(201).json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+user.delete('/friends/:id', requireAuth, async (req, res, next) => {
+  try {
+    await query('DELETE FROM user_friends WHERE user_id = $1::uuid AND friend_id = $2::uuid', [req.user.user_id, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 user.get('/posts', async (req, res, next) => {
   try {
     const limit = limitFor(req.query.limit, 10);
@@ -106,8 +157,9 @@ user.get('/posts', async (req, res, next) => {
     const currentUserId = req.user?.user_id || '00000000-0000-0000-0000-000000000000';
     const selectSql = `
       SELECT n.id, n.post_kind, n.title, n.body, n.published,
-             (n.image_data IS NOT NULL) AS has_image, n.created_at, n.updated_at,
-             n.author_id, u.name AS author_name,
+             (n.image_data IS NOT NULL) AS has_image,
+             (n.video_data IS NOT NULL) AS has_video, n.created_at, n.updated_at,
+             n.author_id, u.name AS author_name, u.username AS author_username,
              COALESCE(r.reaction_counts, '{}'::jsonb) AS reaction_counts,
              COALESCE(r.reaction_count, 0)::bigint AS reaction_count,
              COALESCE(c.comment_count, 0)::bigint AS comment_count,
@@ -156,13 +208,39 @@ user.get('/posts', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+user.get('/posts/posting-status', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role === 'admin') return res.json({ admin: true, limitReached: false, timezone: POST_TIMEZONE, maxImages: null, videoAllowed: true });
+    const { rows } = await query(`
+      SELECT COUNT(*)::int AS count
+        FROM news_posts
+       WHERE author_id = $1::uuid AND post_kind = 'community'
+         AND ((created_at AT TIME ZONE $2)::date) = ((now() AT TIME ZONE $2)::date)
+    `, [req.user.user_id, POST_TIMEZONE]);
+    res.json({ admin: false, limitReached: rows[0].count >= 1, timezone: POST_TIMEZONE, maxImages: 1, videoAllowed: false });
+  } catch (err) { next(err); }
+});
+
+user.get('/posts/:id/video', async (req, res, next) => {
+  try {
+    if (!validId(req.params.id)) return res.status(404).end();
+    const { rows } = await query('SELECT video_data, video_type, published, author_id FROM news_posts WHERE id=$1::bigint AND video_data IS NOT NULL', [req.params.id]);
+    if (!rows[0]) return res.status(404).end();
+    const post = rows[0];
+    const canAccess = post.published || !!(req.user && (req.user.role === 'admin' || String(post.author_id) === String(req.user.user_id)));
+    if (!canAccess) return res.status(404).end();
+    res.set({ 'Content-Type': post.video_type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' }).send(post.video_data);
+  } catch (err) { next(err); }
+});
+
 user.get('/posts/:id', async (req, res, next) => {
   try {
     if (!validId(req.params.id)) return res.status(404).json({ error: 'not_found' });
     const { rows } = await query(`
       SELECT n.id, n.post_kind, n.title, n.body, n.published,
-             (n.image_data IS NOT NULL) AS has_image, n.created_at, n.updated_at,
-             n.author_id, u.name AS author_name,
+             (n.image_data IS NOT NULL) AS has_image,
+             (n.video_data IS NOT NULL) AS has_video, n.created_at, n.updated_at,
+             n.author_id, u.name AS author_name, u.username AS author_username,
              COALESCE((SELECT jsonb_object_agg(reaction_type, reaction_count)
                FROM (SELECT reaction_type, COUNT(*)::int reaction_count
                        FROM post_reactions WHERE post_id = n.id GROUP BY reaction_type) counts), '{}'::jsonb) AS reaction_counts,
@@ -194,7 +272,7 @@ user.get('/posts/:id/image', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-user.post('/posts', requireTier2, async (req, res, next) => {
+user.post('/posts', requireAuth, async (req, res, next) => {
   try {
     const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
     const title = text(body.title, 120);
@@ -203,7 +281,6 @@ user.post('/posts', requireTier2, async (req, res, next) => {
 
     const kind = body.kind === 'official' ? 'official' : 'community';
     if (kind === 'official' && req.user.role !== 'admin') return res.status(403).json({ error: 'admin_only_official_post' });
-    if (kind === 'community' && !isTier2(req.user)) return res.status(403).json({ error: 'tier2_required' });
     if (body.published !== undefined && typeof body.published !== 'boolean') return res.status(400).json({ error: 'bad_request' });
 
     let image = null;
@@ -212,12 +289,37 @@ user.post('/posts', requireTier2, async (req, res, next) => {
       if (!image) return res.status(400).json({ error: 'bad_image' });
     }
 
-    const { rows } = await query(`
-      INSERT INTO news_posts (title, body, image_data, image_type, published, author_id, post_kind)
-      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
-    `, [title, message, image?.buffer || null, image?.type || null, body.published !== false, req.user.user_id, kind]);
+    let video = null;
+    if (body.video !== undefined && body.video !== null) {
+      if (req.user.role !== 'admin') return res.status(403).json({ error: 'video_admin_only' });
+      video = parseVideo(body.video);
+      if (!video) return res.status(400).json({ error: 'bad_video' });
+    }
+
+    const { rows } = await withTransaction(async (client) => {
+      if (req.user.role !== 'admin') {
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [req.user.user_id]);
+        const count = await client.query(`
+          SELECT COUNT(*)::int AS count
+            FROM news_posts
+           WHERE author_id = $1::uuid
+             AND post_kind = 'community'
+             AND ((created_at AT TIME ZONE $2)::date) = ((now() AT TIME ZONE $2)::date)
+        `, [req.user.user_id, POST_TIMEZONE]);
+        if (count.rows[0].count >= 1) throw Object.assign(new Error('daily_post_limit'), { statusCode: 429 });
+      }
+      return client.query(`
+        INSERT INTO news_posts
+          (title, body, image_data, image_type, video_data, video_type, published, author_id, post_kind)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+      `, [title, message, image?.buffer || null, image?.type || null,
+          video?.buffer || null, video?.type || null, body.published !== false, req.user.user_id, kind]);
+    });
     res.status(201).json({ ok: true, id: String(rows[0].id), kind });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.statusCode === 429) return res.status(429).json({ error: 'daily_post_limit', timezone: POST_TIMEZONE });
+    next(err);
+  }
 });
 
 user.put('/posts/:id', requireAuth, async (req, res, next) => {
@@ -240,6 +342,11 @@ user.put('/posts/:id', requireAuth, async (req, res, next) => {
     if (Object.hasOwn(body, 'image')) {
       if (body.image === null) { add('image_data', null); add('image_type', null); }
       else { const image = parseImage(body.image); if (!image) return res.status(400).json({ error: 'bad_image' }); add('image_data', image.buffer); add('image_type', image.type); }
+    }
+    if (Object.hasOwn(body, 'video')) {
+      if (req.user.role !== 'admin') return res.status(403).json({ error: 'video_admin_only' });
+      if (body.video === null) { add('video_data', null); add('video_type', null); }
+      else { const video = parseVideo(body.video); if (!video) return res.status(400).json({ error: 'bad_video' }); add('video_data', video.buffer); add('video_type', video.type); }
     }
     if (!updates.length) return res.status(400).json({ error: 'bad_request' });
     values.push(req.params.id);

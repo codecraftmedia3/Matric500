@@ -69,6 +69,8 @@ function show(view, tab, title) {
   for (const v of VIEWS) $('view-' + v).classList.toggle('hidden', v !== view);
   document.querySelectorAll('[data-tab]').forEach((a) => (a.dataset.tab === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   $('helpBtn').classList.toggle('hidden', view !== 'subject');
+  $('bottomNav')?.classList.toggle('hidden', view === 'forum');
+  if (window.matchMedia('(max-width:767px)').matches) $('aiFab')?.classList.toggle('hidden', view === 'forum');
   document.title = title ? `${title} · Matric500` : 'Matric500';
   window.scrollTo({ top: 0 });
 }
@@ -236,6 +238,7 @@ function renderProfile() {
   const identity = editingProfile ? `
     <div class="mt-4 space-y-4">
       <label class="block text-sm font-bold">Name<input id="nameInput" maxlength="80" autocomplete="name" value="${esc(profile.name || (ME && ME.name) || '')}" class="${field}"></label>
+      <label class="block text-sm font-bold">Username<input id="usernameInput" maxlength="20" autocomplete="username" value="${esc(profile.username || '')}" class="${field}"></label><p id="usernameAvailability" class="mt-1 text-sm text-muted" role="status"></p>
       <label class="block text-sm font-bold">Grade
         <select id="gradeInput" class="${field}"><option value="">Choose…</option>${[9, 10, 11, 12].map((g) => `<option value="${g}" ${Number(profile.grade) === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}</select></label>
       <label class="block text-sm font-bold">School<input id="schoolInput" maxlength="120" value="${esc(profile.school || '')}" class="${field}"></label>
@@ -249,6 +252,7 @@ function renderProfile() {
       </div></div>` : `
     <dl class="mt-4 grid grid-cols-2 gap-4 text-sm">
       <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Name</dt><dd class="mt-0.5 font-semibold">${esc(profile.name || (ME && ME.name) || '-')}</dd></div>
+      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Username</dt><dd class="mt-0.5 font-semibold">${esc(profile.username ? '@' + profile.username : '-')}</dd></div>
       <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Grade</dt><dd class="mt-0.5 font-semibold">${esc(profile.grade ?? '-')}</dd></div>
       <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">School</dt><dd class="mt-0.5 font-semibold">${esc(profile.school || '-')}</dd></div>
       <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Field</dt><dd class="mt-0.5 font-semibold">${streamName}</dd></div>
@@ -273,25 +277,49 @@ function renderProfile() {
         <div class="mt-5 space-y-3">${gradeStats}</div></section>
       <section class="rounded-2xl border border-line bg-surface p-5 lg:col-span-2" aria-labelledby="pHard"><h2 id="pHard" class="font-display text-xl font-extrabold">Challenging topics</h2><ul class="mt-2 divide-y divide-line">${hardList}</ul></section>
     </div>`;
+
+  const usernameInput = $('usernameInput');
+  if (usernameInput) {
+    let timer;
+    usernameInput.addEventListener('input', () => {
+      clearTimeout(timer);
+      const username = usernameInput.value.trim();
+      const status = $('usernameAvailability');
+      if (!status) return;
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+        status.textContent = username ? 'Use 3-20 letters, numbers, or underscores.' : 'Username is required.';
+        return;
+      }
+      status.textContent = 'Checking availability…';
+      timer = setTimeout(async () => {
+        try {
+          const r = await fetch(`/api/username-availability?username=${encodeURIComponent(username)}`, { credentials: 'same-origin', headers: API_HEADERS });
+          const data = await r.json();
+          status.textContent = data.status === 'available' ? 'Available' : data.status === 'taken' ? 'Taken' : 'Invalid username';
+        } catch { status.textContent = 'Could not check availability'; }
+      }, 300);
+    });
+  }
 }
 
 async function saveProfile() {
   const name = $('nameInput').value.trim();
+  const username = $('usernameInput').value.trim();
   const gradeValue = $('gradeInput').value;
   const school = $('schoolInput').value.trim();
   const stream = document.querySelector('input[name="streamInput"]:checked')?.value || null;
   const grade = gradeValue ? Number(gradeValue) : null;
   const btn = $('profileSaveBtn');
-  if (name.length < 1 || name.length > 80 || (grade !== null && ![9, 10, 11, 12].includes(grade)) || school.length > 120) {
+  if (name.length < 1 || name.length > 80 || !/^[A-Za-z0-9_]{3,20}$/.test(username) || (grade !== null && ![9, 10, 11, 12].includes(grade)) || school.length > 120) {
     $('saveNote').textContent = 'Check your name, grade, and school.';
     return;
   }
   btn.disabled = true;
   $('saveNote').textContent = '';
   try {
-    const r = await fetch('/api/profile', { method: 'PUT', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ name, grade, school, stream }) });
+    const r = await fetch('/api/profile', { method: 'PUT', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ name, username, grade, school, stream }) });
     if (!r.ok) throw new Error('save_failed');
-    profile = { name, grade, school, stream };
+    profile = { name, username, grade, school, stream };
     profileSaved = true; editingProfile = false;
     renderProfile();
     $('saveNote').textContent = 'Saved';
@@ -349,7 +377,18 @@ function renderStep() {
 /* ---------- events (delegated, so re-rendering views never loses handlers) ---------- */
 document.addEventListener('click', (e) => {
   const q = (s) => e.target.closest(s);
-  if (q('#signoutBtn')) return signOut();
+  if (q('#mobileProfileBtn')) {
+    const menu = $('mobileProfileMenu');
+    const open = menu.classList.toggle('is-open');
+    q('#mobileProfileBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    return;
+  }
+  if (q('#mobileProfileMenu a, #mobileProfileMenu button')) {
+    if (q('#mobileSignoutBtn')) return signOut();
+    $('mobileProfileMenu').classList.remove('is-open');
+  }
+  if (!q('.mobile-profile')) $('mobileProfileMenu')?.classList.remove('is-open');
+  if (q('#signoutBtn') || q('#mobileSignoutBtn')) return signOut();
   if (q('#helpBtn')) return startTour();
   if (q('[data-check]')) { const id = q('[data-check]').dataset.check; return setStatus(id, status(id) === 'done' ? '' : 'done'); }
   if (q('[data-open]')) return openNode(q('[data-open]').dataset.open);
@@ -378,7 +417,7 @@ document.addEventListener('click', (e) => {
   if (q('#profileEditBtn')) { editingProfile = true; renderProfile(); return $('nameInput').focus(); }
   if (q('#profileCancelBtn')) { editingProfile = false; return renderProfile(); }
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleModal('nodeModal', false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleModal('nodeModal', false); $('mobileProfileMenu')?.classList.remove('is-open'); $('mobileProfileBtn')?.setAttribute('aria-expanded', 'false'); } });
 document.addEventListener('contextmenu', (e) => {
   const b = e.target.closest('[data-open]'); if (!b) return;
   e.preventDefault(); const id = b.dataset.open; setStatus(id, status(id) === 'done' ? '' : 'done');
@@ -402,7 +441,10 @@ async function signOut() {
 
 /* ---------- init ---------- */
 window.M500 = { context: () => ({ view: (location.hash || '#/home').slice(2), subject: current && SUBJECTS[current] ? SUBJECTS[current].name : null, grade: profile.grade ?? null }) };
-if (IS_ADMIN) { $('adminLink').classList.remove('hidden'); $('adminLink').classList.add('inline-flex'); }
+if (IS_ADMIN) {
+  $('adminLink').classList.remove('hidden'); $('adminLink').classList.add('inline-flex');
+  $('mobileAdminLink')?.classList.remove('hidden');
+}
 route();
 syncToTop();
 { const ai = document.createElement('script'); ai.src = 'assistant.js'; document.body.appendChild(ai); }

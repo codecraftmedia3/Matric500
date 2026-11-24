@@ -98,8 +98,8 @@ const publicUser = (u) =>
     role: u.role,
     premium: isTier2(u),
     progress: u.user_progress || {},
-    profile: { name: u.name, grade: u.grade, school: u.school, stream: u.stream },
-    profileComplete: !!(u.name && u.grade && u.school && u.stream),
+    profile: { name: u.name, grade: u.grade, school: u.school, stream: u.stream, username: u.username },
+    profileComplete: !!(u.name && u.grade && u.school && u.stream && u.username),
   };
 
 const router = express.Router();
@@ -115,24 +115,43 @@ router.get('/roadmap', requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user), subjects: visibleRoadmap(req.user) });
 });
 
+router.get('/username-availability', requireAuth, async (req, res, next) => {
+  try {
+    const raw = typeof req.query.username === 'string' ? req.query.username.trim() : '';
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(raw)) return res.json({ status: raw ? 'invalid' : 'invalid', available: false });
+    const { rows } = await query(
+      'SELECT user_id FROM users WHERE lower(username) = lower($1) AND user_id <> $2',
+      [raw, req.user.user_id]
+    );
+    res.json({ status: rows[0] ? 'taken' : 'available', available: !rows[0] });
+  } catch (err) { next(err); }
+});
+
 router.put('/profile', requireAuth, async (req, res, next) => {
   try {
-    const { name, grade, school, stream } = req.body || {};
+    const { name, grade, school, stream, username } = req.body || {};
     const n = typeof name === 'string' ? name.trim() : '';
     const g = grade === null || grade === '' ? null : Number(grade);
     const s = typeof school === 'string' ? school.trim() : '';
+    const usernameValue = typeof username === 'string' ? username.trim() : '';
     if (n.length < 1 || n.length > 80) return res.status(400).json({ error: 'bad_request' });
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(usernameValue)) return res.status(400).json({ error: 'invalid_username' });
     if (g !== null && !(Number.isInteger(g) && g >= 9 && g <= 12)) return res.status(400).json({ error: 'bad_request' });
     if (s.length > 120) return res.status(400).json({ error: 'bad_request' });
     if (stream !== null && stream !== undefined && !['natural', 'social'].includes(stream)) return res.status(400).json({ error: 'bad_request' });
     const { rows } = await query(
-      `UPDATE users SET name=$2, grade=$3, school=$4, stream=$5, updated_at=now()
-       WHERE user_id=$1 RETURNING name, grade, school, stream`,
-      [req.user.user_id, n, g, s || null, stream || null]
+      `UPDATE users SET name=$2, grade=$3, school=$4, stream=$5, username=$6,
+                        username_updated_at=now(), updated_at=now()
+       WHERE user_id=$1
+       RETURNING name, grade, school, stream, username`,
+      [req.user.user_id, n, g, s || null, stream || null, usernameValue]
     );
     if (!rows[0]) return res.status(401).json({ error: 'auth_required' });
     res.json({ ok: true, profile: rows[0] });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'username_taken' });
+    next(err);
+  }
 });
 
 router.get('/subjects/:key/grades/:grade', requireAuth, guardGrade, (req, res) => res.json(req.grade));

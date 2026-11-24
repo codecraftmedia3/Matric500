@@ -37,7 +37,7 @@ app.use(helmet({
 app.use(compression());
 
 app.use('/api/admin/news', express.json({ limit: '3mb' }));
-app.use('/api/posts', express.json({ limit: '3mb' }));
+app.use('/api/posts', express.json({ limit: '12mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: true, legacyHeaders: false }));
@@ -64,6 +64,8 @@ const PUBLIC = {
   '/': 'index.html',
   '/index.html': 'index.html',
   '/app.js': 'app.js',
+  '/socials.js': 'socials.js',
+  '/socials.css': 'socials.css',
   '/login': 'login.html',
   '/login.html': 'login.html',
   '/login.js': 'login.js',

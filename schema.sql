@@ -21,9 +21,15 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at                  timestamptz NOT NULL DEFAULT now(),
   grade                       smallint CHECK (grade BETWEEN 9 AND 12),
   school                      text CHECK (char_length(school) <= 120),
-  stream                      text CHECK (stream IN ('natural','social'))
+  stream                      text CHECK (stream IN ('natural','social')),
+  username                    text,
+  username_updated_at         timestamptz,
+  CONSTRAINT users_username_format_check CHECK (
+    username IS NULL OR (char_length(username) BETWEEN 3 AND 20 AND username ~ '^[A-Za-z0-9_]+$')
+  )
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx ON users (lower(email));
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (lower(username)) WHERE username IS NOT NULL;
 CREATE INDEX IF NOT EXISTS users_status_idx ON users (account_status);
 CREATE INDEX IF NOT EXISTS users_registered_idx ON users (registration_date DESC);
 
@@ -47,7 +53,9 @@ CREATE TABLE IF NOT EXISTS news_posts (
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
   post_kind   text    NOT NULL DEFAULT 'official'
-                              CHECK (post_kind IN ('official','community'))
+                              CHECK (post_kind IN ('official','community')),
+  video_data  bytea,
+  video_type  text CHECK (video_type IS NULL OR video_type IN ('video/mp4','video/webm'))
 );
 CREATE INDEX IF NOT EXISTS news_posts_created_idx ON news_posts (id DESC);
 CREATE INDEX IF NOT EXISTS news_posts_feed_idx
@@ -121,6 +129,16 @@ CREATE INDEX IF NOT EXISTS post_reports_reporter_created_idx
   ON post_reports (reporter_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS news_posts_author_feed_idx
   ON news_posts (author_id, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS user_friends (
+  user_id uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  friend_id uuid NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, friend_id),
+  CHECK (user_id <> friend_id)
+);
+CREATE INDEX IF NOT EXISTS user_friends_friend_idx
+  ON user_friends (friend_id, user_id);
 
 CREATE TABLE IF NOT EXISTS moderation_audit (
   audit_id   bigserial PRIMARY KEY,
