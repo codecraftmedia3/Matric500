@@ -23,7 +23,7 @@ const store = {
 
 let progress = (ME && ME.progress) || {};
 let profile = (ME && ME.profile) ? { ...ME.profile } : {};
-let profileSaved = !!(profile.grade != null || profile.school || profile.stream);
+let profileSaved = !!(profile.username && profile.grade != null && profile.school && profile.stream);
 let editingProfile = !profileSaved;
 let toured = store.get('m500_tour_done', false);
 let current = null;                 // subject key on the subject view
@@ -84,6 +84,12 @@ function route() {
   } else if (name === 'roadmap') { renderRoadmap(); show('roadmap', 'roadmap', 'Roadmap'); }
   else if (name === 'exams')     { renderExams();   show('exams', 'exams', 'Exams'); }
   else if (name === 'forum')     { window.SocialsUI ? window.SocialsUI.init() : renderForum();   show('forum', 'forum', 'Socials'); }
+  else if (name === 'profile' && arg) {
+    const username = decodeURIComponent(arg);
+    show('profile', 'profile', `@${username}`);
+    renderPublicProfileLoading(username);
+    loadPublicProfile(username);
+  }
   else if (name === 'profile')   { renderProfile(); show('profile', 'profile', 'Profile'); }
   else                           { renderHome();    show('home', 'home'); }
 }
@@ -230,34 +236,83 @@ function renderExams() {
 }
 
 /* ---------- profile ---------- */
-function renderProfile() {
-  const streamName = profile.stream === 'natural' ? 'Natural Science' : profile.stream === 'social' ? 'Social Science' : '-';
+function renderPublicProfileLoading(username) {
+  $('view-profile').innerHTML = `
+    <div class="mx-auto max-w-3xl">
+      <a href="#/forum" class="inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-muted hover:text-ink">← Back to Socials</a>
+      <section class="mt-4 rounded-3xl border border-line bg-surface p-8 text-center shadow-sm" role="status">
+        <p class="text-sm font-bold text-muted">Loading profile</p>
+        <p class="mt-1 text-lg font-extrabold">@${esc(username)}</p>
+      </section>
+    </div>`;
+}
+
+let profileRequestId = 0;
+async function loadPublicProfile(username) {
+  const requestId = ++profileRequestId;
+  try {
+    const response = await fetch(`/api/profiles/${encodeURIComponent(username)}`, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'fetch' },
+    });
+    if (!response.ok) {
+      if (response.status === 404) throw new Error('We couldn’t find that profile.');
+      throw new Error('This profile couldn’t be loaded. Please try again.');
+    }
+    const data = await response.json();
+    if (requestId !== profileRequestId || !data.profile) return;
+    if (String(data.profile.username).toLowerCase() === String(profile.username || '').toLowerCase()) {
+      renderProfile();
+      return;
+    }
+    renderProfile(data.profile, false);
+  } catch (error) {
+    if (requestId !== profileRequestId) return;
+    $('view-profile').innerHTML = `
+      <div class="mx-auto max-w-3xl">
+        <a href="#/forum" class="inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-muted hover:text-ink">← Back to Socials</a>
+        <section class="mt-4 rounded-3xl border border-line bg-surface p-8 text-center shadow-sm" role="alert">
+          <span class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-bg text-xl" aria-hidden="true">?</span>
+          <h1 class="mt-4 font-display text-2xl font-extrabold">Profile unavailable</h1>
+          <p class="mt-2 text-sm text-muted">${esc(error.message || 'This profile couldn’t be loaded.')}</p>
+          <a href="#/forum" class="mt-5 inline-flex min-h-[44px] items-center rounded-full bg-ink px-5 text-sm font-bold text-white hover:bg-cyan">Return to Socials</a>
+        </section>
+      </div>`;
+  }
+}
+
+function renderProfile(displayProfile = profile, isOwnProfile = true) {
+  const streamName = displayProfile.stream === 'natural' ? 'Natural Science' : displayProfile.stream === 'social' ? 'Social Science' : '-';
+  const displayName = displayProfile.name || (isOwnProfile && ME && ME.name) || 'Student';
+  const profileUsername = displayProfile.username || '';
+  const avatarInitials = displayName.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
   const all = count(Object.keys(INDEX));
-  const hard = hardIds();
+  const hard = isOwnProfile ? hardIds() : [];
   const field = 'mt-1 w-full rounded-xl border border-line bg-bg px-3 py-2.5 text-base text-ink outline-none focus:border-ink';
-  const identity = editingProfile ? `
+  const identity = isOwnProfile && editingProfile ? `
     <div class="mt-4 space-y-4">
-      <label class="block text-sm font-bold">Name<input id="nameInput" maxlength="80" autocomplete="name" value="${esc(profile.name || (ME && ME.name) || '')}" class="${field}"></label>
-      <label class="block text-sm font-bold">Username<input id="usernameInput" maxlength="20" autocomplete="username" value="${esc(profile.username || '')}" class="${field}"></label><p id="usernameAvailability" class="mt-1 text-sm text-muted" role="status"></p>
+      <label class="block text-sm font-bold">Name<input id="nameInput" maxlength="80" autocomplete="name" value="${esc(displayName)}" class="${field}"></label>
+      <label class="block text-sm font-bold">Username<input id="usernameInput" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(profileUsername)}" class="${field}"></label><p id="usernameAvailability" class="mt-1 text-sm text-muted" role="status"></p>
       <label class="block text-sm font-bold">Grade
-        <select id="gradeInput" class="${field}"><option value="">Choose…</option>${[9, 10, 11, 12].map((g) => `<option value="${g}" ${Number(profile.grade) === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}</select></label>
-      <label class="block text-sm font-bold">School<input id="schoolInput" maxlength="120" value="${esc(profile.school || '')}" class="${field}"></label>
+        <select id="gradeInput" class="${field}"><option value="">Choose…</option>${[9, 10, 11, 12].map((g) => `<option value="${g}" ${Number(displayProfile.grade) === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}</select></label>
+      <label class="block text-sm font-bold">School<input id="schoolInput" maxlength="120" value="${esc(displayProfile.school || '')}" class="${field}"></label>
       <fieldset><legend class="text-sm font-bold">Field</legend><div class="mt-1 flex flex-wrap gap-4 text-sm">
-        <label class="inline-flex items-center gap-2"><input type="radio" name="streamInput" value="natural" id="streamNatural" ${profile.stream === 'natural' ? 'checked' : ''}> Natural Science</label>
-        <label class="inline-flex items-center gap-2"><input type="radio" name="streamInput" value="social" id="streamSocial" ${profile.stream === 'social' ? 'checked' : ''}> Social Science</label></div></fieldset>
+        <label class="inline-flex items-center gap-2"><input type="radio" name="streamInput" value="natural" id="streamNatural" ${displayProfile.stream === 'natural' ? 'checked' : ''}> Natural Science</label>
+        <label class="inline-flex items-center gap-2"><input type="radio" name="streamInput" value="social" id="streamSocial" ${displayProfile.stream === 'social' ? 'checked' : ''}> Social Science</label></div></fieldset>
       <div class="flex flex-wrap items-center gap-3">
         <button id="profileSaveBtn" type="button" class="min-h-[44px] rounded-full bg-ink px-6 text-sm font-bold text-white hover:bg-cyan disabled:opacity-50">Save</button>
         ${profileSaved ? '<button id="profileCancelBtn" type="button" class="min-h-[44px] rounded-full border-2 border-ink px-5 text-sm font-bold hover:bg-ink hover:text-white">Cancel</button>' : ''}
         <span id="saveNote" class="text-sm text-muted" role="status"></span>
-      </div></div>` : `
-    <dl class="mt-4 grid grid-cols-2 gap-4 text-sm">
-      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Name</dt><dd class="mt-0.5 font-semibold">${esc(profile.name || (ME && ME.name) || '-')}</dd></div>
-      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Username</dt><dd class="mt-0.5 font-semibold">${esc(profile.username ? '@' + profile.username : '-')}</dd></div>
-      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Grade</dt><dd class="mt-0.5 font-semibold">${esc(profile.grade ?? '-')}</dd></div>
-      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">School</dt><dd class="mt-0.5 font-semibold">${esc(profile.school || '-')}</dd></div>
+      </div>
+    </div>` : `
+    <dl class="mt-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Name</dt><dd class="mt-1 font-semibold">${esc(displayName)}</dd></div>
+      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Username</dt><dd class="mt-1 font-semibold">${esc(profileUsername ? '@' + profileUsername : '-')}</dd></div>
+      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Grade</dt><dd class="mt-1 font-semibold">${esc(displayProfile.grade ?? '-')}</dd></div>
+      <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">School</dt><dd class="mt-1 font-semibold">${esc(displayProfile.school || '-')}</dd></div>
       <div><dt class="text-xs font-bold uppercase tracking-widest text-muted">Field</dt><dd class="mt-0.5 font-semibold">${streamName}</dd></div>
     </dl>
-    <div class="mt-4 flex items-center gap-3"><button id="profileEditBtn" type="button" class="min-h-[44px] rounded-full border-2 border-ink px-5 text-sm font-bold hover:bg-ink hover:text-white">Edit</button><span id="saveNote" class="text-sm text-muted" role="status"></span></div>`;
+    ${isOwnProfile ? '<div class="mt-5 flex items-center gap-3"><span id="saveNote" class="text-sm text-muted" role="status"></span></div>' : ''}`;
 
   const gradeStats = Object.entries(SUBJECTS).flatMap(([key, s]) => (s.grades || []).map((g) => {
     const c = count(idsOf(key, g.grade)), t = TIERS[g.grade] || TIERS[9];
@@ -267,50 +322,84 @@ function renderProfile() {
     ? hard.map((i) => `<li class="flex items-center justify-between gap-3 py-2 text-sm"><button data-goto="${esc(i)}" class="text-left hover:underline">${esc(INDEX[i].title)}</button><span class="shrink-0 rounded px-2 py-0.5 text-[10px] font-bold" style="background:${TIERS[INDEX[i].grade].f};color:${TIERS[INDEX[i].grade].k}">${esc(INDEX[i].subject)} · G${INDEX[i].grade}</span></li>`).join('')
     : '<li class="py-2 text-sm text-muted">Nothing marked challenging yet.</li>';
 
-  $('view-profile').innerHTML = `
-    <h1 class="font-display text-3xl font-extrabold tracking-tight sm:text-4xl">Profile</h1>
-    <div class="mt-6 grid gap-6 lg:grid-cols-2">
-      <section class="rounded-2xl border border-line bg-surface p-5" aria-labelledby="pInfo"><h2 id="pInfo" class="font-display text-xl font-extrabold">About you</h2>${identity}
-        <p class="mt-4 text-xs text-muted">${esc((ME && ME.email) || '')}</p></section>
-      <section class="rounded-2xl border border-line bg-surface p-5" aria-labelledby="pProg"><h2 id="pProg" class="font-display text-xl font-extrabold">Progress</h2>
+  const progressSections = isOwnProfile ? `
+      <section class="rounded-3xl border border-line bg-surface p-5 shadow-sm" aria-labelledby="pProg"><h2 id="pProg" class="font-display text-xl font-extrabold">Your progress</h2>
         <div class="mt-3 mb-1 flex justify-between text-xs text-muted"><span>${all.done}/${all.total} topics</span><span>${pct(all)}%</span></div>${bar(pct(all), '#1F6B4F', 'h-3')}
         <div class="mt-5 space-y-3">${gradeStats}</div></section>
-      <section class="rounded-2xl border border-line bg-surface p-5 lg:col-span-2" aria-labelledby="pHard"><h2 id="pHard" class="font-display text-xl font-extrabold">Challenging topics</h2><ul class="mt-2 divide-y divide-line">${hardList}</ul></section>
+      <section class="rounded-3xl border border-line bg-surface p-5 shadow-sm lg:col-span-2" aria-labelledby="pHard"><h2 id="pHard" class="font-display text-xl font-extrabold">Topics to revisit</h2><ul class="mt-2 divide-y divide-line">${hardList}</ul></section>` : '';
+
+  $('view-profile').innerHTML = `
+    <div class="mx-auto max-w-5xl">
+      ${isOwnProfile ? '' : '<a href="#/forum" class="inline-flex min-h-[44px] items-center gap-2 text-sm font-bold text-muted hover:text-ink">← Back to Socials</a>'}
+      <h1 class="sr-only">${isOwnProfile ? 'Your profile' : `${esc(displayName)}’s profile`}</h1>
+      <section class="mt-4 overflow-hidden rounded-3xl border border-line bg-surface shadow-sm" aria-label="${isOwnProfile ? 'Your profile' : 'Public profile'}">
+        <div class="relative overflow-hidden bg-ink px-6 py-8 text-white sm:px-9">
+          <div class="absolute -right-10 -top-20 h-56 w-56 rounded-full bg-volt/20 blur-2xl" aria-hidden="true"></div>
+          <div class="relative flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+            <span class="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-white/20 bg-volt font-display text-2xl font-extrabold text-ink shadow-lg">${esc(avatarInitials || '?')}</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold uppercase tracking-[.18em] text-volt">${isOwnProfile ? 'Your learning profile' : 'Student profile'}</p>
+              <p class="mt-1 truncate font-display text-3xl font-extrabold tracking-tight">${esc(displayName)}</p>
+              <p class="mt-1 text-sm text-white/75">${esc(profileUsername ? '@' + profileUsername : 'Set a username to connect with others')}</p>
+            </div>
+            ${isOwnProfile && !editingProfile ? '<button id="profileEditBtn" type="button" class="min-h-[44px] rounded-full border border-white/40 px-5 text-sm font-bold text-white hover:bg-white/10">Edit profile</button>' : ''}
+          </div>
+        </div>
+        <div class="grid gap-6 p-5 sm:p-8 ${isOwnProfile ? 'lg:grid-cols-2' : ''}">
+          <section aria-labelledby="pInfo"><div><p class="text-xs font-bold uppercase tracking-[.16em] text-cyan">${isOwnProfile ? 'About you' : 'About'}</p><h2 class="mt-1 font-display text-xl font-extrabold">${isOwnProfile ? 'Profile details' : 'Learning profile'}</h2></div>${identity}
+            ${isOwnProfile ? `<p class="mt-5 border-t border-line pt-4 text-xs text-muted">${esc((ME && ME.email) || '')}</p>` : ''}</section>
+          ${progressSections}
+        </div>
+      </section>
     </div>`;
 
   const usernameInput = $('usernameInput');
   if (usernameInput) {
     let timer;
+    let checkId = 0;
     usernameInput.addEventListener('input', () => {
       clearTimeout(timer);
-      const username = usernameInput.value.trim();
+      const currentCheckId = ++checkId;
+      const formatted = usernameInput.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (usernameInput.value !== formatted) usernameInput.value = formatted;
+      const username = formatted;
       const status = $('usernameAvailability');
       if (!status) return;
-      if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
-        status.textContent = username ? 'Use 3-20 letters, numbers, or underscores.' : 'Username is required.';
+      if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+        status.textContent = username ? 'Use 3-20 lowercase letters, numbers, or underscores.' : 'Username is required.';
         return;
       }
       status.textContent = 'Checking availability…';
       timer = setTimeout(async () => {
         try {
           const r = await fetch(`/api/username-availability?username=${encodeURIComponent(username)}`, { credentials: 'same-origin', headers: API_HEADERS });
+          if (!r.ok) throw new Error('availability_check_failed');
           const data = await r.json();
+          if (currentCheckId !== checkId) return;
           status.textContent = data.status === 'available' ? 'Available' : data.status === 'taken' ? 'Taken' : 'Invalid username';
-        } catch { status.textContent = 'Could not check availability'; }
+        } catch {
+          if (currentCheckId === checkId) status.textContent = 'Could not check availability';
+        }
       }, 300);
     });
   }
+
 }
 
 async function saveProfile() {
   const name = $('nameInput').value.trim();
-  const username = $('usernameInput').value.trim();
+  const username = $('usernameInput').value.trim().toLowerCase();
   const gradeValue = $('gradeInput').value;
   const school = $('schoolInput').value.trim();
   const stream = document.querySelector('input[name="streamInput"]:checked')?.value || null;
   const grade = gradeValue ? Number(gradeValue) : null;
   const btn = $('profileSaveBtn');
-  if (name.length < 1 || name.length > 80 || !/^[A-Za-z0-9_]{3,20}$/.test(username) || (grade !== null && ![9, 10, 11, 12].includes(grade)) || school.length > 120) {
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+    $('saveNote').textContent = 'Username must be 3-20 lowercase letters, numbers, or underscores.';
+    $('usernameInput').focus();
+    return;
+  }
+  if (name.length < 1 || name.length > 80 || (grade !== null && ![9, 10, 11, 12].includes(grade)) || school.length > 120) {
     $('saveNote').textContent = 'Check your name, grade, and school.';
     return;
   }
@@ -318,14 +407,21 @@ async function saveProfile() {
   $('saveNote').textContent = '';
   try {
     const r = await fetch('/api/profile', { method: 'PUT', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ name, username, grade, school, stream }) });
-    if (!r.ok) throw new Error('save_failed');
-    profile = { name, username, grade, school, stream };
+    const result = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const messages = {
+        username_taken: 'That username is already in use. Try another one.',
+        invalid_username: 'Use 3-20 letters, numbers, or underscores.',
+      };
+      throw new Error(messages[result.error] || 'Could not save your profile. Please try again.');
+    }
+    profile = { ...profile, name, username, grade, school, stream };
     profileSaved = true; editingProfile = false;
     renderProfile();
     $('saveNote').textContent = 'Saved';
-  } catch {
+  } catch (error) {
     btn.disabled = false;
-    $('saveNote').textContent = 'Could not save. Try again.';
+    $('saveNote').textContent = error.message || 'Could not save your profile. Please try again.';
   }
 }
 

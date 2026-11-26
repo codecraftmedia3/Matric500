@@ -115,6 +115,21 @@ router.get('/roadmap', requireAuth, (req, res) => {
   res.json({ user: publicUser(req.user), subjects: visibleRoadmap(req.user) });
 });
 
+router.get('/profiles/:username', async (req, res, next) => {
+  try {
+    const username = typeof req.params.username === 'string' ? req.params.username.trim() : '';
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) return res.status(404).json({ error: 'not_found' });
+    const { rows } = await query(
+      `SELECT name, username, grade, school, stream
+         FROM users
+        WHERE lower(username) = lower($1) AND account_status = 'active'`,
+      [username]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.json({ profile: rows[0] });
+  } catch (err) { next(err); }
+});
+
 router.get('/username-availability', requireAuth, async (req, res, next) => {
   try {
     const raw = typeof req.query.username === 'string' ? req.query.username.trim() : '';
@@ -133,7 +148,7 @@ router.put('/profile', requireAuth, async (req, res, next) => {
     const n = typeof name === 'string' ? name.trim() : '';
     const g = grade === null || grade === '' ? null : Number(grade);
     const s = typeof school === 'string' ? school.trim() : '';
-    const usernameValue = typeof username === 'string' ? username.trim() : '';
+    const usernameValue = typeof username === 'string' ? username.trim().toLowerCase() : '';
     if (n.length < 1 || n.length > 80) return res.status(400).json({ error: 'bad_request' });
     if (!/^[A-Za-z0-9_]{3,20}$/.test(usernameValue)) return res.status(400).json({ error: 'invalid_username' });
     if (g !== null && !(Number.isInteger(g) && g >= 9 && g <= 12)) return res.status(400).json({ error: 'bad_request' });

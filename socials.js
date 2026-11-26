@@ -10,7 +10,7 @@ window.SocialsUI = (() => {
     imageViewer: null, searchQuery: '', loading: false, submitted: false, selectedVideo: null,
     mobileNavOpen: false, searchExpanded: false, feedFilter: 'all', friendsSearchQuery: '',
     dailyLimitReached: false, postingStatus: null,
-    selectedImage: null, selectedImageName: '',
+    selectedImage: null, selectedImageName: '', showCommentsFor: null, showMoreFor: null,
   };
 
   let mockFriends = [
@@ -67,7 +67,11 @@ window.SocialsUI = (() => {
   };
 
   function initials(name) { return String(name || 'M').split(/\s+/).slice(0,2).map(v => v[0] || '').join('').toUpperCase(); }
-  function avatar(user, size='md') { const letter = initials(user.displayName || user.name); const accent = user.accent || '#C8F25A'; return `<span class="social-avatar social-avatar-${size}" style="--avatar-accent:${accent}" aria-hidden="true">${esc(letter)}</span>`; }
+  function avatar(user, size='md') {
+    const letter = initials(user.displayName || user.name);
+    const accent = user.accent || '#C8F25A';
+    return `<span class="social-avatar social-avatar-${size}" style="--avatar-accent:${accent}" aria-hidden="true">${esc(letter)}</span>`;
+  }
 
   function sidebar() {
     const items = [{id:'home',label:'Home',icon:icons.home},{id:'search',label:'Search',icon:icons.search},{id:'explore',label:'Explore',icon:icons.compass}];
@@ -94,16 +98,38 @@ window.SocialsUI = (() => {
   }
 
   function friendItem(friend, compact=false) {
-    return `<button type="button" class="social-friend-item ${compact ? 'is-compact' : ''}" data-social-action="friend-profile" data-user-id="${esc(friend.id)}"><span class="social-presence-wrap">${avatar(friend,'friend')}<span class="social-presence ${esc(friend.status)}" title="${esc(friend.status)}"></span></span><span class="social-friend-copy"><strong>${esc(friend.displayName)}</strong><small>@${esc(friend.username)}</small></span></button>`;
+    return `<button type="button" class="social-friend-item ${compact ? 'is-compact' : ''}" data-social-action="open-profile" data-username="${esc(friend.username)}"><span class="social-presence-wrap">${avatar(friend,'friend')}<span class="social-presence ${esc(friend.status)}" title="${esc(friend.status)}"></span></span><span class="social-friend-copy"><strong>${esc(friend.displayName)}</strong><small>@${esc(friend.username)}</small></span></button>`;
   }
 
   function postCard(post) {
     const cls = `social-post-card social-post-${post.variant || 'standard'}`;
     const media = post.images?.length ? `<div class="social-post-media media-count-${post.images.length}">${post.images.map((src,index) => `<button type="button" class="social-media-button" data-social-action="open-image" data-image="${esc(src)}" aria-label="Expand post image ${index+1}"><img src="${esc(src)}" alt="Illustration for ${esc(post.title)}" loading="lazy"></button>`).join('')}</div>` : '';
+    // Comments section toggle
+    const showComments = state.showCommentsFor === post.id;
+    // More menu toggle
+    const showMore = state.showMoreFor === post.id;
     return `<article class="${cls}" data-post-id="${esc(post.id)}">
-      <div class="social-post-author"><span class="social-avatar social-avatar-post">${esc(initials(post.displayName))}</span><div class="social-author-copy"><div><strong>${esc(post.displayName)}</strong>${post.author.badge ? `<span class="social-author-badge">${esc(post.author.badge)}</span>` : ''}</div><span>@${esc(post.username)} · ${esc(post.createdAt)}</span></div><button type="button" class="social-post-more" data-social-action="post-menu" data-post-id="${esc(post.id)}" aria-label="Post options">•••</button></div>
+      <div class="social-post-author">
+        <button type="button" class="social-avatar social-avatar-post" data-social-action="open-profile" data-username="${esc(post.username)}">${esc(initials(post.displayName))}</button>
+        <div class="social-author-copy">
+          <div>
+            <button type="button" class="social-author-link" data-social-action="open-profile" data-username="${esc(post.username)}"><strong>${esc(post.displayName)}</strong></button>
+            ${post.author.badge ? `<span class="social-author-badge">${esc(post.author.badge)}</span>` : ''}
+          </div>
+          <span>@${esc(post.username)} · ${esc(post.createdAt)}</span>
+        </div>
+        <div class="social-more-menu-wrap">
+          <button type="button" class="social-post-more" data-social-action="post-menu" data-post-id="${esc(post.id)}" aria-label="Post options">•••</button>
+          ${showMore ? `<ul class="social-more-dropdown"><li><button type="button" data-social-action="share" data-post-id="${esc(post.id)}">Share</button></li><li><button type="button" data-social-action="report" data-post-id="${esc(post.id)}">Report</button></li></ul>` : ''}
+        </div>
+      </div>
       <div class="social-post-content"><h2>${esc(post.title)}</h2><p>${esc(post.body)}</p>${post.variant === 'expanded' ? '' : post.body.length > 180 ? `<button type="button" class="social-read-more" data-social-action="toggle-post-copy" data-post-id="${esc(post.id)}">Read more</button>` : ''}</div>${media}
-      <div class="social-post-actions"><button type="button" class="social-reaction ${post.reacted ? 'is-reacted' : ''}" data-social-action="react" data-post-id="${esc(post.id)}" aria-label="React to post"><span class="social-action-icon">${post.reacted ? '♥' : '♡'}</span><span>${post.reactionCount}</span></button><button type="button" data-social-action="comment" data-post-id="${esc(post.id)}" aria-label="View comments"><span class="social-action-icon">${icons.comment}</span><span>${post.commentCount}</span></button><button type="button" class="social-share-action" data-social-action="share" data-post-id="${esc(post.id)}" aria-label="Share post">${icons.share}</button></div>
+      <div class="social-post-actions">
+        <button type="button" class="social-reaction ${post.reacted ? 'is-reacted' : ''}" data-social-action="react" data-post-id="${esc(post.id)}" aria-label="React to post"><span class="social-action-icon">${post.reacted ? '♥' : '♡'}</span><span>${post.reactionCount}</span></button>
+        <button type="button" data-social-action="comment" data-post-id="${esc(post.id)}" aria-label="View comments"><span class="social-action-icon">${icons.comment}</span><span>${post.commentCount}</span></button>
+        <button type="button" class="social-share-action" data-social-action="share" data-post-id="${esc(post.id)}" aria-label="Share post">${icons.share}</button>
+      </div>
+      ${showComments ? `<div class="social-comments-section"><p class="text-muted">Comments coming soon...</p></div>` : ''}
     </article>`;
   }
 
@@ -185,6 +211,10 @@ window.SocialsUI = (() => {
   }
 
   function bindEvents() {
+    if (!outsideMenuListenerBound) {
+      document.addEventListener('click', closeMoreMenuOnOutsideClick);
+      outsideMenuListenerBound = true;
+    }
     const root = document.getElementById('view-forum');
     if (!root) return;
     root.querySelectorAll('[data-social-page]').forEach(button => button.addEventListener('click', () => { state.activePage = button.dataset.socialPage; state.mobileSidebarOpen = false; state.mobileNavOpen = false; render(); }));
@@ -242,12 +272,34 @@ window.SocialsUI = (() => {
     else if (action === 'reset-composer') { state.selectedImage=null; state.selectedImageName=''; resetComposerFields(); }
     else if (action === 'react') { const post=posts.find(p=>p.id===button.dataset.postId); if(post){post.reacted=!post.reacted; post.reactionCount+=post.reacted?1:-1;} }
     else if (action === 'share') { const url=`${location.origin}${location.pathname}#/forum`; navigator.clipboard?.writeText(url).catch(()=>{}); }
-    else if (action === 'comment') { const card=document.querySelector(`[data-post-id="${CSS.escape(button.dataset.postId)}"]`); card?.scrollIntoView({behavior:'smooth',block:'center'}); }
+    else if (action === 'comment') {
+      // Toggle comments section for this post
+      const postId = button.dataset.postId;
+      state.showCommentsFor = state.showCommentsFor === postId ? null : postId;
+    }
     else if (action === 'toggle-post-copy') { button.closest('.social-post-content')?.classList.toggle('is-expanded'); button.textContent=button.closest('.social-post-content')?.classList.contains('is-expanded')?'Show less':'Read more'; }
     else if (action === 'refresh-feed') { state.loading=true; render(); setTimeout(()=>{state.loading=false;render();},600); return; }
-    else if (action === 'post-menu') { button.closest('article')?.classList.toggle('shows-options'); }
-    else if (action === 'friend-profile') { button.classList.toggle('is-selected'); }
+    else if (action === 'post-menu') {
+      // Toggle More menu for this post
+      const postId = button.dataset.postId;
+      state.showMoreFor = state.showMoreFor === postId ? null : postId;
+    }
+    else if (action === 'open-profile') {
+      const username = button.dataset.username;
+      if (username) location.hash = `#/profile/${encodeURIComponent(username)}`;
+    }
+    else if (action === 'report') {
+      alert('Report post feature coming soon.');
+    }
     render();
+  }
+
+  let outsideMenuListenerBound = false;
+  function closeMoreMenuOnOutsideClick(event) {
+    if (state.showMoreFor && !event.target.closest('.social-more-menu-wrap')) {
+      state.showMoreFor = null;
+      render();
+    }
   }
 
   function resetComposerFields() { const title=document.getElementById('socialPostTitle'); const body=document.getElementById('socialPostBody'); if(title) title.value=''; if(body) body.value=''; }

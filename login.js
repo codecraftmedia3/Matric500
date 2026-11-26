@@ -66,18 +66,23 @@ function initGoogle() {
 let usernameCheckTimer;
 $('pUsername')?.addEventListener('input', () => {
   clearTimeout(usernameCheckTimer);
-  const username = $('pUsername').value.trim();
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
-    showError('username', username ? 'Use 3-20 letters, numbers, or underscores.' : 'Username is required.');
+  const username = $('pUsername').value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  $('pUsername').value = username;
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+    showError('username', username ? 'Use 3-20 lowercase letters, numbers, or underscores.' : 'Username is required.');
     return;
   }
   showError('username', 'Checking availability…');
   usernameCheckTimer = setTimeout(async () => {
     try {
       const r = await fetch(`/api/username-availability?username=${encodeURIComponent(username)}`, { credentials: 'same-origin', headers: API_HEADERS });
+      if (!r.ok) throw new Error('availability_check_failed');
       const data = await r.json();
+      if ($('pUsername').value !== username) return;
       showError('username', data.status === 'available' ? 'Available' : data.status === 'taken' ? 'Taken' : 'Invalid username');
-    } catch { showError('username', 'Could not check availability'); }
+    } catch {
+      if ($('pUsername').value === username) showError('username', 'Could not check availability');
+    }
   }, 300);
 });
 
@@ -94,7 +99,7 @@ function populateProfile(user) {
 $('profileForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const name = $('pName').value.trim();
-  const username = $('pUsername').value.trim();
+  const username = $('pUsername').value.trim().toLowerCase();
   const grade = Number($('pGrade').value) || null;
   const school = $('pSchool').value.trim();
   const stream = document.querySelector('input[name=stream]:checked')?.value || null;
@@ -108,7 +113,7 @@ $('profileForm').addEventListener('submit', async (event) => {
 
   let invalid = false;
   if (name.length < 1 || name.length > 80) { showError('name', 'Enter a valid full name (1-80 characters).'); invalid = true; }
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) { showError('username', 'Use 3-20 letters, numbers, or underscores.'); invalid = true; }
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) { showError('username', 'Use 3-20 lowercase letters, numbers, or underscores.'); invalid = true; }
   if (grade === null || ![9, 10, 11, 12].includes(grade)) { showError('grade', 'Choose a grade from 9 to 12.'); invalid = true; }
   if (school.length < 1 || school.length > 120) { showError('school', 'Enter a school name (1-120 characters).'); invalid = true; }
   if (!stream || !['natural', 'social'].includes(stream)) { showError('stream', 'Choose Natural Science or Social Science.'); invalid = true; }
@@ -120,7 +125,12 @@ $('profileForm').addEventListener('submit', async (event) => {
   try {
     const r = await fetch('/api/profile', { method: 'PUT', credentials: 'same-origin', headers: API_HEADERS, body: JSON.stringify({ name, username, grade, school, stream }) });
     if (!r.ok) {
-      $('profileStatus').textContent = 'Could not save. Please check the fields and try again.';
+      const result = await r.json().catch(() => ({}));
+      $('profileStatus').textContent = result.error === 'username_taken'
+        ? 'That username is already in use. Try another one.'
+        : result.error === 'invalid_username'
+          ? 'Use 3-20 lowercase letters, numbers, or underscores.'
+          : 'Could not save. Please check the fields and try again.';
       return;
     }
     location.replace('/');
